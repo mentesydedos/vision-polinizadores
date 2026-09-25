@@ -222,7 +222,7 @@
       </div>
       <div class="error" id="introError" role="alert" hidden></div>
       <p class="note">La imagen se procesa en tu computador y no se envía a ningún sitio.
-        La narración usa la voz del navegador; en Chrome y Edge suena en español.</p>
+        La narración se escucha con sonido: sube el volumen.</p>
       <input type="file" id="fileInput" accept="video/*,image/*" hidden>
     </div>
   </div>
@@ -332,7 +332,7 @@ const state = {
   flags: [true, true, true, true, true],
   borders: true,
   info: true,
-  voice: "speechSynthesis" in window,
+  voice: true,
   hex: 9,
 };
 
@@ -633,12 +633,36 @@ function startDemo() {
   useVideo("demo").then(begin);
 }
 
-/* ================================================================ narración */
-let voice = null, narrating = false, narrStart = 0;
+/* ================================================================ narración
+   Las narraciones están grabadas en web/audio/*.mp3 (voz Sabina de Windows,
+   generadas con tools/generar_audios.py), así suenan igual en todos los
+   dispositivos. Si un audio no carga, se usa la voz del navegador. */
+let voice = null, narrating = null, narrStart = 0, narrToken = 0;
+const narrAudio = new Audio();
+narrAudio.preload = "auto";
+
+const audioFile = (a) =>
+  "audio/" + a.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() + ".mp3";
+
+narrAudio.addEventListener("ended", () => { if (narrating === "audio") endNarration(); });
+
+// Safari y los celulares solo dejan reproducir audio si el primer play() ocurre
+// dentro de un toque o clic; se "desbloquea" el reproductor con el primer toque.
+let audioUnlocked = false;
+document.addEventListener("pointerdown", () => {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (narrating) return;
+  narrAudio.src = audioFile(ANIMALS[state.animal]);
+  narrAudio.muted = true;
+  narrAudio.play().then(() => { if (!narrating) narrAudio.pause(); }).catch(() => {})
+    .finally(() => { narrAudio.muted = false; });
+}, true);
 
 function pickVoice() {
   const voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith("es"));
-  const score = (v) => (/natural|online|neural/i.test(v.name) ? 2 : 0) + (/es-(mx|us|419)/i.test(v.lang) ? 1 : 0);
+  const score = (v) => (/sabina/i.test(v.name) ? 3 : 0) + (/natural|online|neural/i.test(v.name) ? 2 : 0) +
+                       (/es-(mx|us|419)/i.test(v.lang) ? 1 : 0);
   voice = voices.sort((a, b) => score(b) - score(a))[0] || null;
 }
 if ("speechSynthesis" in window) {
@@ -646,9 +670,30 @@ if ("speechSynthesis" in window) {
   speechSynthesis.addEventListener?.("voiceschanged", pickVoice);
 }
 
-function speak(text) {
+function narrate(animal) {
   stopSpeech();
-  if (!state.voice || !("speechSynthesis" in window)) return;
+  if (!state.voice) return;
+  const token = ++narrToken;
+  narrating = "audio";
+  narrStart = performance.now();
+  setBig(true);
+  narrAudio.muted = false;
+  narrAudio.src = audioFile(animal);
+  narrAudio.currentTime = 0;
+  narrAudio.play().catch((err) => {
+    if (token !== narrToken) return;               // ya se pidió otra narración
+    if (err.name === "NotAllowedError") {          // el navegador bloqueó el sonido
+      endNarration();
+      toast("Toca “Narrar” para escuchar la narración.");
+    } else {
+      speakFallback(animal.narration);            // no se pudo cargar el audio
+    }
+  });
+}
+
+function speakFallback(text) {
+  if (!("speechSynthesis" in window)) { endNarration(); return; }
+  if (!voice) pickVoice();
   // Frase por frase: algunos navegadores cortan los textos largos.
   for (const sentence of text.match(/[^.!?]+[.!?]+/g) || [text]) {
     const u = new SpeechSynthesisUtterance(sentence.trim());
@@ -656,15 +701,20 @@ function speak(text) {
     if (voice) u.voice = voice;
     speechSynthesis.speak(u);
   }
-  narrating = true;
+  narrating = "tts";
   narrStart = performance.now();
-  setBig(true);
+}
+
+function endNarration() {
+  narrating = null;
+  setBig(false);
 }
 
 function stopSpeech() {
+  narrToken++;
+  narrAudio.pause();
   if ("speechSynthesis" in window) speechSynthesis.cancel();
-  narrating = false;
-  setBig(false);
+  endNarration();
 }
 
 function setBig(on) {
@@ -698,7 +748,7 @@ function selectAnimal(i) {
   state.flags = [true, a.fisheye > 0, a.compound, a.motion, true];
   state.hex = a.hex;
   syncUI();
-  if (state.voice) speak(a.narration);
+  if (state.voice) narrate(a);
 }
 
 function syncUI() {
@@ -725,7 +775,7 @@ function changeFacet(step) {
 function toggleVoice() {
   state.voice = !state.voice;
   syncUI();
-  if (state.voice) speak(ANIMALS[state.animal].narration);
+  if (state.voice) narrate(ANIMALS[state.animal]);
   else stopSpeech();
 }
 
@@ -758,10 +808,6 @@ function showIntro() {
 function begin() {
   $("intro").hidden = true;
   showIntroError("");
-  if (!voice && state.voice && "speechSynthesis" in window) {
-    pickVoice();
-    if (!voice) toast("Este navegador no tiene voz en español; se usará la voz predeterminada.");
-  }
   selectAnimal(state.animal);
 }
 
@@ -864,9 +910,8 @@ function frame(now) {
   fps = fps * 0.92 + (1000 / Math.max(dt, 1)) * 0.08;
 
   // Al terminar la narración vuelve la vista 50% / 50%.
-  if (narrating && now - narrStart > 800 && !speechSynthesis.speaking && !speechSynthesis.pending) {
-    narrating = false;
-    setBig(false);
+  if (narrating === "tts" && now - narrStart > 800 && !speechSynthesis.speaking && !speechSynthesis.pending) {
+    endNarration();
   }
   if (!source) return;
 

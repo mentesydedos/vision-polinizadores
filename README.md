@@ -10,6 +10,14 @@ velocidad de visión y visión nocturna) y una narración en voz alta.
 `web/index.html`: se abre directamente en Chrome, Edge o Firefox, sin instalar
 nada. Permite usar la cámara, un video o foto, o una escena de demostración.
 
+Las narraciones están grabadas en `web/audio/` (voz Sabina de Windows) para que
+suenen igual en todos los dispositivos. Si cambias un texto de narración en
+`web/index.html`, vuelve a generar los audios (Windows + ffmpeg):
+
+```
+python tools/generar_audios.py
+```
+
 ## Versión Python (Windows)
 
 `vision_abeja.py`: requiere Python con `opencv-python`, `numpy` y `Pillow`.
