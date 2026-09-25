@@ -64,7 +64,7 @@
   .stage.portrait .pane-human  { width: 100%; height: 50%; }
   .stage.portrait .pane-animal { left: 0; top: 50%; width: 100%; height: 50%; }
 
-  /* Modo narración: el animal ocupa todo y la imagen real queda en un recuadro */
+  /* Vista grande: el animal ocupa todo y la imagen real queda en un recuadro */
   .stage { --inset-w: clamp(150px, 22%, 340px); }
   .stage.portrait { --inset-w: clamp(120px, 38%, 260px); }
   .stage.big .pane-animal { left: 0; top: 0; width: 100%; height: 100%; }
@@ -92,12 +92,6 @@
   .hud .name { font: 700 clamp(22px, 3.2vw, 34px)/1.1 var(--display); text-transform: uppercase; letter-spacing: .04em; }
   .hud .eye { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #dcdbd2; }
   .hud .stats { font-size: 12px; color: #c9c9bf; font-variant-numeric: tabular-nums; }
-  .hud .narr { font-size: 13px; font-weight: 700; color: var(--amber); display: flex; align-items: center; gap: 6px; }
-  .hud .narr::before {
-    content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--amber);
-    animation: pulse 1s ease-in-out infinite;
-  }
-  @keyframes pulse { 50% { opacity: .25; } }
   .ficha {
     left: 0; right: 0; bottom: 0;
     padding: 28px 16px 12px;
@@ -144,12 +138,20 @@
     padding: 10px 12px; border-radius: 8px; font-size: 14px;
   }
 
+  /* Botones hexagonales, como los omatidios */
+  .btn, .ctl {
+    --cut: 12px;
+    border: 0; border-radius: 0;
+    clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% 50%,
+                       calc(100% - var(--cut)) 100%, var(--cut) 100%, 0 50%);
+  }
+  .btn:focus-visible, .ctl:focus-visible { outline: none; background: var(--focus); color: var(--amber-ink); }
   .btn {
-    border: 1px solid var(--line); background: var(--raise); border-radius: 999px;
-    padding: 10px 16px; cursor: pointer; font-weight: 700;
+    background: var(--raise);
+    padding: 11px calc(var(--cut) + 14px); cursor: pointer; font-weight: 700;
   }
   .btn:hover { background: var(--raise-hover); }
-  .btn.primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+  .btn.primary { background: var(--amber); color: var(--amber-ink); }
   .btn.primary:hover { background: #ffe98a; }
 
   /* ------------------------------------------------------------ barra de controles */
@@ -164,14 +166,15 @@
   .row .group:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
   a.ctl { text-decoration: none; }
   .ctl {
-    border: 1px solid var(--line); background: var(--raise); border-radius: 999px;
-    padding: 6px 12px; cursor: pointer; font-size: 14px; white-space: nowrap;
+    --cut: 10px;
+    background: var(--raise);
+    padding: 7px calc(var(--cut) + 10px); cursor: pointer; font-size: 14px; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 7px;
   }
   .ctl:hover { background: var(--raise-hover); }
-  .ctl[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
-  .animal { flex: 1 1 110px; justify-content: center; font-weight: 700; padding-block: 8px; }
-  .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); border-color: var(--leaf); }
+  .ctl[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); }
+  .animal { --cut: 14px; flex: 1 1 120px; justify-content: center; font-weight: 700; padding-block: 10px; }
+  .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); }
   .home { color: var(--amber); text-decoration: none; font-size: 13px; }
   .home:hover { text-decoration: underline; }
   .cam-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
@@ -183,7 +186,7 @@
   @media (max-width: 700px) {
     .row .group { border-right: 0; padding-right: 0; margin-right: 0; }
     .key { display: none; }
-    .ctl { padding: 6px 9px; font-size: 13px; }
+    .ctl { padding: 6px calc(var(--cut) + 6px); font-size: 13px; }
   }
   @media (max-width: 480px) {
     .ficha { font-size: 11.5px; padding: 20px 10px 8px; }
@@ -191,7 +194,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .pane { transition: none; }
-    .hud .narr::before { animation: none; }
   }
 </style>
 </head>
@@ -210,7 +212,6 @@
       <div class="name" id="hudName">Abeja</div>
       <div class="eye"><span id="hudEye">Ojo compuesto</span><span class="chips" id="hudChips"></span></div>
       <div class="stats" id="hudStats"></div>
-      <div class="narr" id="hudNarr" hidden>Narrando…</div>
     </div>
     <div class="ficha" id="ficha"><p id="ficha1"></p><p id="ficha2"></p></div>
   </section>
@@ -239,8 +240,7 @@
       <label class="cam-pick" id="camPickIntro" hidden>Cámara
         <select id="camSelectIntro"></select></label>
       <div class="error" id="introError" role="alert" hidden></div>
-      <p class="note">La imagen se procesa en tu computador y no se envía a ningún sitio.
-        La narración se escucha con sonido: sube el volumen.</p>
+      <p class="note">La imagen se procesa en tu computador y no se envía a ningún sitio.</p>
       <input type="file" id="fileInput" accept="video/*,image/*" hidden>
     </div>
   </div>
@@ -263,7 +263,8 @@
     </div>
     <div class="group" role="group" aria-label="Opciones">
       <button class="ctl" id="btnInfo" aria-pressed="true">Ficha <span class="key">I</span></button>
-      <button class="ctl" id="btnVoice" aria-pressed="true">Narrar <span class="key">N</span></button>
+      <button class="ctl" id="btnBig" aria-pressed="false">Vista grande <span class="key">V</span></button>
+      <button class="ctl" id="btnSparkle" aria-pressed="false">Destellos <span class="key">D</span></button>
       <button class="ctl" id="btnShot">Captura <span class="key">S</span></button>
       <button class="ctl" id="btnFull">Pantalla completa <span class="key">F</span></button>
       <button class="ctl" id="btnSource">Cambiar fuente</button>
@@ -290,57 +291,50 @@ const ANIMALS = [
     name: "Abeja", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
     info: ["Ve UV, azul y verde; el rojo le parece negro.",
            "~5.500 omatidios por ojo · ~200 imágenes por segundo."],
-    narration: "Abeja melífera. Sus ojos compuestos tienen unas cinco mil quinientas facetas, llamadas omatidios, y cada una capta un solo punto de color, por eso ve el mundo como un mosaico. Ve el ultravioleta, el azul y el verde, pero no el rojo: para ella, el rojo es casi negro. Muchas flores tienen dibujos ultravioleta, invisibles para nosotros, que le señalan dónde está el néctar. Además percibe unas doscientas imágenes por segundo, así que nota el movimiento mucho más rápido que nosotros.",
     matrix: [lin([0.9, G], [0.1, R]), lin([1.1, B]), UV],
-    compound: true, hex: 9, fisheye: 0.45, blur: 2.5, decay: 0.85, thresh: 18, night: 1, motion: true,
+    compound: true, hex: 7, fisheye: 0.3, blur: 1.4, decay: 0.85, thresh: 18, night: 1, motion: true,
   },
   {
     name: "Abejorro", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
     info: ["Ve UV, azul y verde, como la abeja; ojos más grandes.",
            "Algo más nítido y activo con menos luz (días nublados)."],
-    narration: "Abejorro. Ve los colores como la abeja: ultravioleta, azul y verde, sin el rojo. Sus ojos son más grandes y tienen más facetas, así que ve con algo más de detalle. Es de los pocos polinizadores que salen con frío, niebla o cielo nublado, y su vista funciona bien con poca luz. Puede aprender a reconocer las flores por su forma y por patrones que nosotros no vemos.",
     matrix: [lin([0.95, G], [0.1, R]), lin([1.05, B], [0.05, G]), lin([0.9, UV], [0.1, B])],
-    compound: true, hex: 7, fisheye: 0.4, blur: 2.0, decay: 0.83, thresh: 18, night: 1.3, motion: true,
+    compound: true, hex: 6, fisheye: 0.28, blur: 1.1, decay: 0.83, thresh: 18, night: 1.3, motion: true,
   },
   {
     name: "Mariposa", eye: "Ojo compuesto", receptors: ["uv", "b", "g", "r"],
     info: ["Hasta 6 tipos de fotorreceptores: ve UV y también el rojo.",
            "~12.000 omatidios · colores muy saturados, flores con “guías” UV."],
-    narration: "Mariposa. Tiene alrededor de doce mil omatidios en cada ojo. Algunas especies, como la mariposa cola de golondrina, tienen seis tipos de fotorreceptores, el doble que nosotros: ven el ultravioleta y también el rojo. Por eso su mundo tiene colores muy intensos, y distingue matices que para nosotros son idénticos. Muchas mariposas tienen dibujos ultravioleta en las alas, que usan para reconocer a su pareja.",
     matrix: [lin([1.25, R], [-0.2, G]), lin([1.15, G], [-0.1, R], [0.05, B]), lin([0.5, B], [0.55, UV])],
-    compound: true, hex: 6, fisheye: 0.5, blur: 1.8, decay: 0.8, thresh: 20, night: 1, motion: true,
+    compound: true, hex: 5, fisheye: 0.32, blur: 1.0, decay: 0.8, thresh: 20, night: 1, motion: true,
   },
   {
     name: "Sírfido", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
     info: ["Mosca de las flores: ve UV, azul y verde.",
            "Visión de movimiento ultrarrápida (~300 imágenes por segundo)."],
-    narration: "Sírfido, la mosca de las flores. Imita a las abejas con sus rayas amarillas y negras, pero es una mosca. Ve ultravioleta, azul y verde, y sus enormes ojos cubren casi todo lo que la rodea. Su visión del movimiento es de las más rápidas del reino animal: capta unas trescientas imágenes por segundo. Eso le permite quedarse suspendida en el aire y perseguir a otros insectos con gran precisión.",
     matrix: [lin([0.85, G], [0.15, R]), lin([1.05, B], [0.05, G]), UV],
-    compound: true, hex: 7, fisheye: 0.55, blur: 2.2, decay: 0.92, thresh: 10, night: 1, motion: true,
+    compound: true, hex: 6, fisheye: 0.35, blur: 1.2, decay: 0.92, thresh: 10, night: 1, motion: true,
   },
   {
     name: "Polilla", eye: "Ojo compuesto de superposición", receptors: ["uv", "b", "g"],
     info: ["Polilla esfinge: ve en color de noche (UV, azul y verde).",
            "Ojos de superposición: capta mucha luz pero ve borroso."],
-    narration: "Polilla esfinge. Vuela de noche y, a diferencia de nosotros, ve en color incluso a la luz de las estrellas. Sus ojos de superposición reúnen la luz de muchas facetas en cada punto de la imagen: así ve muy brillante, pero borroso y con grano. Ve ultravioleta, azul y verde, y busca sobre todo flores blancas o pálidas, que destacan en la oscuridad.",
     matrix: [lin([0.9, G], [0.1, R]), lin([1.1, B]), UV],
-    compound: true, hex: 12, fisheye: 0.45, blur: 4.5, decay: 0.9, thresh: 14, night: 2.4, motion: true,
+    compound: true, hex: 9, fisheye: 0.3, blur: 2.6, decay: 0.9, thresh: 14, night: 2.0, motion: true,
   },
   {
     name: "Colibrí", eye: "Ojo tipo cámara", receptors: ["uv", "b", "g", "r"],
     info: ["Ojo tipo cámara, muy nítido. Ve rojo, verde, azul y UV:",
            "distingue colores “UV+verde” que nosotros no podemos ver."],
-    narration: "Colibrí. Sus ojos son de tipo cámara, como los nuestros, sin facetas, y muy nítidos. Pero tiene cuatro tipos de conos: rojo, verde, azul y ultravioleta. Gracias a eso percibe colores que para nosotros no existen, como el ultravioleta mezclado con verde o con rojo. Le atraen especialmente las flores rojas y tubulares, y su vista le ayuda a calcular distancias mientras flota frente a ellas.",
     matrix: [lin([1, R], [0.25, UV]), lin([1, G], [0.1, UV]), lin([1, B], [0.35, UV])],
-    compound: false, hex: 9, fisheye: 0.15, blur: 0, decay: 0.6, thresh: 25, night: 1, motion: false,
+    compound: false, hex: 9, fisheye: 0.1, blur: 0, decay: 0.6, thresh: 25, night: 1, motion: false,
   },
   {
     name: "Murciélago", eye: "Ojo tipo cámara, nocturno", receptors: ["uv", "rod"],
     info: ["Murciélago nectarívoro: visión nocturna casi en blanco y negro,",
            "sensible al UV. Se guía sobre todo por ecolocalización y olfato."],
-    narration: "Murciélago nectarívoro. Es un polinizador nocturno muy importante, por ejemplo del agave. Su vista está adaptada a la oscuridad: ve casi en blanco y negro y con poca nitidez, pero es sensible al ultravioleta, lo que le ayuda a encontrar flores que lo reflejan. Para orientarse usa sobre todo la ecolocalización y su excelente olfato.",
     matrix: [lin([0.8, GRAY]), GRAY, lin([1.1, GRAY])],
-    compound: false, hex: 9, fisheye: 0.1, blur: 3.0, decay: 0.7, thresh: 22, night: 2.8, motion: false,
+    compound: false, hex: 9, fisheye: 0.08, blur: 1.8, decay: 0.7, thresh: 22, night: 2.3, motion: false,
   },
 ];
 
@@ -358,8 +352,9 @@ const state = {
   flags: [true, true, true, true, true],
   borders: true,
   info: true,
-  voice: true,
-  hex: 9,
+  big: false,        // vista grande (animal a pantalla casi completa)
+  sparkle: false,    // destellos dorados en lo amarillo
+  hex: 7,
   zoom: 1,
   center: [0.5, 0.5],   // centro del zoom, en coordenadas de pantalla (0..1)
 };
@@ -405,7 +400,7 @@ precision highp float;
 uniform sampler2D uVideo, uTrail;
 uniform vec2 uRes;
 uniform float uVideoAspect, uMirror;
-uniform float uColor, uFish, uHex, uMotion, uVig, uBorders;
+uniform float uColor, uFish, uHex, uMotion, uVig, uBorders, uSparkle;
 uniform float uFishK, uFacet, uLod, uNight, uTime, uZoom;
 uniform vec2 uCenter;
 uniform vec3 uM0, uM1, uM2;
@@ -438,6 +433,9 @@ void main() {
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);  // píxel, y hacia abajo
   vec2 sp = p;
   float d = 0.;
+  // rejilla de los destellos (cada celda puede tener una estrella)
+  float cs = max(uFacet * 3.5, 26.);
+  vec2 cell = floor(p / cs), local = (fract(p / cs) - .5) * 2.;
 
   if (uHex > .5) {
     // Cuadrícula hexagonal (coordenadas cúbicas): cada omatidio toma un solo color.
@@ -469,18 +467,35 @@ void main() {
     c = clamp(vec3(dot(uM0, c), dot(uM1, c), dot(uM2, c)), 0., 1.);
     if (uNight > 1.) {
       c = min(pow(c, vec3(1. / uNight)) * 1.05, 1.);
-      c += (hash(sp + uTime * 61.7) - .5) * .0543 * uNight;
+      c += (hash(sp + uTime * 61.7) - .5) * .035 * uNight;
     }
   }
-  if (uMotion > .5) c = mix(c, vec3(1., .902, .157), .6 * texture(uTrail, v).r);
+  if (uMotion > .5) c = mix(c, vec3(1., .902, .157), .45 * texture(uTrail, v).r);
+
+  if (uSparkle > .5) {
+    // Destellos dorados sobre lo amarillo de la simulación (tonos entre naranja y amarillo).
+    float ratio = c.g / (c.r + 1e-3);
+    float hue = smoothstep(.45, .65, ratio) * (1. - smoothstep(1.1, 1.35, ratio));
+    float yel = smoothstep(.1, .32, min(c.r, c.g) - c.b) * hue;
+    c = mix(c, c * vec3(1.08, .96, .72) + vec3(.06, .04, 0.), yel * .35);   // brillo dorado
+    float h1 = hash(cell * 1.37 + 7.1), h2 = hash(cell.yx * 3.11 + 1.3);
+    float ph = fract(uTime * (.3 + .6 * h2) + h1);
+    float blink = smoothstep(0., .06, ph) * (1. - smoothstep(.06, .35, ph)) * step(.35, h1);
+    vec2 q = local * 1.1 - (vec2(h1, h2) - .5) * .5;          // posición al azar en la celda
+    float star = pow(max(0., 1. - length(q) * 2.2), 2.)       // núcleo
+               + exp(-abs(q.x) * 22.) * pow(max(0., 1. - abs(q.y)), 3.)   // rayos
+               + exp(-abs(q.y) * 22.) * pow(max(0., 1. - abs(q.x)), 3.);
+    c += vec3(1., .85, .4) * yel * blink * star * 2.2;
+  }
+
   if (uHex > .5) {
-    float shade = clamp(1.08 - .25 * d * d, 0., 2.);
-    if (uBorders > .5 && d > 1. - 1.6 / uFacet) shade *= .25;
+    float shade = clamp(1.04 - .12 * d * d, 0., 2.);
+    if (uBorders > .5 && d > 1. - 1.1 / uFacet) shade *= .6;
     c *= shade;
   }
   if (uVig > .5) {
     vec2 n = p / uRes * 2. - 1.;
-    c *= clamp(1.25 - .65 * dot(n, n), 0., 1.);
+    c *= clamp(1.3 - .45 * dot(n, n), 0., 1.);
   }
   o = vec4(clamp(c, 0., 1.), 1.);
 }`;
@@ -760,93 +775,11 @@ function startDemo() {
   useVideo("demo").then(begin);
 }
 
-/* ================================================================ narración
-   Las narraciones están grabadas en web/audio/*.mp3 (voz Sabina de Windows,
-   generadas con tools/generar_audios.py), así suenan igual en todos los
-   dispositivos. Si un audio no carga, se usa la voz del navegador. */
-let voice = null, narrating = null, narrStart = 0, narrToken = 0;
-const narrAudio = new Audio();
-narrAudio.preload = "auto";
-
-const audioFile = (a) =>
-  "audio/" + a.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() + ".mp3";
-
-narrAudio.addEventListener("ended", () => { if (narrating === "audio") endNarration(); });
-
-// Safari y los celulares solo dejan reproducir audio si el primer play() ocurre
-// dentro de un toque o clic; se "desbloquea" el reproductor con el primer toque.
-let audioUnlocked = false;
-document.addEventListener("pointerdown", () => {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  if (narrating) return;
-  narrAudio.src = audioFile(ANIMALS[state.animal]);
-  narrAudio.muted = true;
-  narrAudio.play().then(() => { if (!narrating) narrAudio.pause(); }).catch(() => {})
-    .finally(() => { narrAudio.muted = false; });
-}, true);
-
-function pickVoice() {
-  const voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith("es"));
-  const score = (v) => (/sabina/i.test(v.name) ? 3 : 0) + (/natural|online|neural/i.test(v.name) ? 2 : 0) +
-                       (/es-(mx|us|419)/i.test(v.lang) ? 1 : 0);
-  voice = voices.sort((a, b) => score(b) - score(a))[0] || null;
-}
-if ("speechSynthesis" in window) {
-  pickVoice();
-  speechSynthesis.addEventListener?.("voiceschanged", pickVoice);
-}
-
-function narrate(animal) {
-  stopSpeech();
-  if (!state.voice) return;
-  const token = ++narrToken;
-  narrating = "audio";
-  narrStart = performance.now();
-  setBig(true);
-  narrAudio.muted = false;
-  narrAudio.src = audioFile(animal);
-  narrAudio.currentTime = 0;
-  narrAudio.play().catch((err) => {
-    if (token !== narrToken) return;               // ya se pidió otra narración
-    if (err.name === "NotAllowedError") {          // el navegador bloqueó el sonido
-      endNarration();
-      toast("Toca “Narrar” para escuchar la narración.");
-    } else {
-      speakFallback(animal.narration);            // no se pudo cargar el audio
-    }
-  });
-}
-
-function speakFallback(text) {
-  if (!("speechSynthesis" in window)) { endNarration(); return; }
-  if (!voice) pickVoice();
-  // Frase por frase: algunos navegadores cortan los textos largos.
-  for (const sentence of text.match(/[^.!?]+[.!?]+/g) || [text]) {
-    const u = new SpeechSynthesisUtterance(sentence.trim());
-    u.lang = voice ? voice.lang : "es-ES";
-    if (voice) u.voice = voice;
-    speechSynthesis.speak(u);
-  }
-  narrating = "tts";
-  narrStart = performance.now();
-}
-
-function endNarration() {
-  narrating = null;
-  setBig(false);
-}
-
-function stopSpeech() {
-  narrToken++;
-  narrAudio.pause();
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
-  endNarration();
-}
-
+/* ================================================================ vista grande */
 function setBig(on) {
+  state.big = on;
   stage.classList.toggle("big", on);
-  $("hudNarr").hidden = !on;
+  $("btnBig").setAttribute("aria-pressed", on);
 }
 
 /* ================================================================ interfaz */
@@ -875,7 +808,6 @@ function selectAnimal(i) {
   state.flags = [true, a.fisheye > 0, a.compound, a.motion, true];
   state.hex = a.hex;
   syncUI();
-  if (state.voice) narrate(a);
 }
 
 function syncUI() {
@@ -884,7 +816,7 @@ function syncUI() {
   filterButtons.forEach((b, i) => b.setAttribute("aria-pressed", state.flags[i]));
   $("btnBorders").setAttribute("aria-pressed", state.borders);
   $("btnInfo").setAttribute("aria-pressed", state.info);
-  $("btnVoice").setAttribute("aria-pressed", state.voice);
+  $("btnSparkle").setAttribute("aria-pressed", state.sparkle);
   $("facetReadout").textContent = `Faceta ${state.hex} px`;
   $("hudName").textContent = a.name;
   $("hudEye").textContent = a.eye;
@@ -993,12 +925,6 @@ function changeFacet(step) {
   syncUI();
 }
 
-function toggleVoice() {
-  state.voice = !state.voice;
-  syncUI();
-  if (state.voice) narrate(ANIMALS[state.animal]);
-  else stopSpeech();
-}
 
 let toastTimer = 0;
 function toast(msg) {
@@ -1021,7 +947,6 @@ function showIntroError(msg) {
 }
 
 function showIntro() {
-  stopSpeech();
   $("btnBack").hidden = !source;
   $("intro").hidden = false;
 }
@@ -1045,7 +970,8 @@ $("btnZoomIn").addEventListener("click", () => setZoom(state.zoom * 1.25));
 $("btnZoomOut").addEventListener("click", () => setZoom(state.zoom / 1.25));
 $("zoomReadout").addEventListener("click", () => setZoom(1));
 $("btnInfo").addEventListener("click", () => { state.info = !state.info; syncUI(); });
-$("btnVoice").addEventListener("click", toggleVoice);
+$("btnBig").addEventListener("click", () => setBig(!state.big));
+$("btnSparkle").addEventListener("click", () => { state.sparkle = !state.sparkle; syncUI(); });
 $("btnShot").addEventListener("click", () => (captureRequested = true));
 $("btnFull").addEventListener("click", toggleFullscreen);
 $("btnSource").addEventListener("click", showIntro);
@@ -1058,7 +984,8 @@ document.addEventListener("keydown", (e) => {
   else if (k === "+" || k === "=") changeFacet(1);
   else if (k === "-") changeFacet(-1);
   else if (k === "i") { state.info = !state.info; syncUI(); }
-  else if (k === "n") toggleVoice();
+  else if (k === "v") setBig(!state.big);
+  else if (k === "d") { state.sparkle = !state.sparkle; syncUI(); }
   else if (k === "a" || k === "arrowright") selectAnimal((state.animal + 1) % ANIMALS.length);
   else if (k === "arrowleft") selectAnimal((state.animal + ANIMALS.length - 1) % ANIMALS.length);
   else if (k === "s") captureRequested = true;
@@ -1139,10 +1066,6 @@ function frame(now) {
   lastT = now;
   fps = fps * 0.92 + (1000 / Math.max(dt, 1)) * 0.08;
 
-  // Al terminar la narración vuelve la vista 50% / 50%.
-  if (narrating === "tts" && now - narrStart > 800 && !speechSynthesis.speaking && !speechSynthesis.pending) {
-    endNarration();
-  }
   if (!source) return;
 
   // Cámara congelada más de 5 s: reconectar.
@@ -1210,6 +1133,7 @@ function frame(now) {
   gl.uniform1f(u("uMirror"), source.kind === "camera" ? 1 : 0);
   ["uColor", "uFish", "uHex", "uMotion", "uVig"].forEach((n, i) => gl.uniform1f(u(n), state.flags[i] ? 1 : 0));
   gl.uniform1f(u("uBorders"), state.borders ? 1 : 0);
+  gl.uniform1f(u("uSparkle"), state.sparkle ? 1 : 0);
   gl.uniform1f(u("uFishK"), a.fisheye);
   gl.uniform1f(u("uZoom"), state.zoom);
   gl.uniform2f(u("uCenter"), state.center[0], state.center[1]);
