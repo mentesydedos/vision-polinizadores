@@ -5,6 +5,13 @@ mariposa, sírfido, polilla esfinge, colibrí y murciélago nectarívoro. Cada u
 tiene su propia biología ocular (colores que percibe, omatidios, campo visual,
 velocidad de visión y visión nocturna) y una narración en voz alta.
 
+## Sitio
+
+- `index.html` y `boceto.html`: página del proyecto *Guías de polinización.
+  Fotobordado y softwares en vivo* (Dannia Aguilar), según el diseño original.
+  Imágenes y estilos en `assets/`.
+- `web/`: el software en vivo.
+
 ## Versión web (cualquier computador)
 
 `web/index.html`: se abre directamente en Chrome, Edge o Firefox, sin instalar

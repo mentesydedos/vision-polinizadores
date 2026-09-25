@@ -6,37 +6,39 @@
 <title>Visión de Polinizadores</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Martian+Mono:wdth,wght@75..112,300..700&display=swap">
 <style>
-  /* Tema único oscuro a propósito: es un visor de video, como una sala oscura. */
+  /* Identidad de "Guías de polinización" (Dannia Aguilar): morado, amarillo y naranja.
+     Tema único a propósito: es un visor de video. */
   :root {
     color-scheme: dark;
-    --bg: #11120e;
-    --panel: #1b1d17;
-    --raise: #272a21;
-    --raise-hover: #32362a;
-    --line: #363a2e;
-    --text: #ecebe3;
-    --muted: #a4a697;
-    --amber: #e8a33d;      /* filtro activo */
-    --amber-ink: #231703;
-    --leaf: #5fb46c;       /* animal elegido */
-    --leaf-ink: #0d2111;
-    --focus: #f6d488;
-    --uv: #9b6cff;
+    --bg: #1d0a48;
+    --panel: #4a18a6;
+    --raise: #5a27ba;
+    --raise-hover: #6b37cf;
+    --line: #7248cf;
+    --text: #fff3c2;
+    --muted: #d4c6f5;
+    --amber: #ffde58;      /* filtro activo */
+    --amber-ink: #2a0d66;
+    --leaf: #f47821;       /* animal elegido */
+    --leaf-ink: #2b0c00;
+    --focus: #ffde58;
+    --uv: #b57cff;
     --blue: #4f8cff;
     --green: #4fc46a;
-    --red: #e0533d;
-    --rod: #b9bab0;
-    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --red: #ff4b3a;
+    --rod: #d2cfc4;
+    --display: "Chakra Petch", "Consolas", monospace;
+    --body: "Martian Mono", "Consolas", monospace;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.45 var(--body);
+    font: 14px/1.45 var(--body);
+    font-stretch: 80%;
     display: flex;
     flex-direction: column;
     padding-top: env(safe-area-inset-top, 0px);
@@ -82,15 +84,15 @@
   .mirror { transform: scaleX(-1); }
 
   .tag, .hud, .ficha { position: absolute; text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none; }
-  .tag { left: 14px; top: 10px; font: 800 22px/1.2 var(--display); }
+  .tag { left: 14px; top: 10px; font: 700 22px/1.2 var(--display); text-transform: uppercase; letter-spacing: .04em; }
   .stage.big .tag { left: 8px; top: 4px; font-size: 15px; }
   .hud { left: 14px; top: 10px; right: 14px; display: grid; gap: 2px; }
-  .hud .name { font: 800 clamp(22px, 3.2vw, 34px)/1.1 var(--display); letter-spacing: -.01em; }
+  .hud .name { font: 700 clamp(22px, 3.2vw, 34px)/1.1 var(--display); text-transform: uppercase; letter-spacing: .04em; }
   .hud .eye { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #dcdbd2; }
   .hud .stats { font-size: 12px; color: #c9c9bf; font-variant-numeric: tabular-nums; }
-  .hud .narr { font-size: 13px; font-weight: 700; color: #ffd98a; display: flex; align-items: center; gap: 6px; }
+  .hud .narr { font-size: 13px; font-weight: 700; color: var(--amber); display: flex; align-items: center; gap: 6px; }
   .hud .narr::before {
-    content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ffd98a;
+    content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--amber);
     animation: pulse 1s ease-in-out infinite;
   }
   @keyframes pulse { 50% { opacity: .25; } }
@@ -120,13 +122,14 @@
     padding: 24px 16px;
     overflow-y: auto;
     background:
-      radial-gradient(ellipse at 30% 20%, rgba(232,163,61,.16), transparent 60%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0l28 16v32L28 64 0 48V16zM28 64v33' fill='none' stroke='%23e8a33d' stroke-opacity='.09' stroke-width='1.5'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse at 30% 20%, rgba(255,222,88,.18), transparent 60%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0l28 16v32L28 64 0 48V16zM28 64v33' fill='none' stroke='%23ffde58' stroke-opacity='.14' stroke-width='1.5'/%3E%3C/svg%3E"),
       var(--bg);
   }
   .intro-card { max-width: 620px; display: grid; gap: 18px; }
   .intro h1 {
-    margin: 0; font: 800 clamp(34px, 6vw, 60px)/1 var(--display); letter-spacing: -.02em; text-wrap: balance;
+    margin: 0; font: 700 clamp(26px, 7.5vw, 60px)/1 var(--display); text-transform: uppercase; letter-spacing: .02em; text-wrap: balance;
+    overflow-wrap: anywhere;
   }
   .intro h1 span { color: var(--amber); }
   .intro p { margin: 0; color: #d4d3c9; max-width: 60ch; }
@@ -140,12 +143,12 @@
   }
 
   .btn {
-    border: 1px solid var(--line); background: var(--raise); border-radius: 8px;
+    border: 1px solid var(--line); background: var(--raise); border-radius: 999px;
     padding: 10px 16px; cursor: pointer; font-weight: 700;
   }
   .btn:hover { background: var(--raise-hover); }
   .btn.primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
-  .btn.primary:hover { background: #f1b457; }
+  .btn.primary:hover { background: #ffe98a; }
 
   /* ------------------------------------------------------------ barra de controles */
   .bar {
@@ -157,8 +160,9 @@
   .row { display: flex; flex-wrap: wrap; gap: 6px; }
   .row .group { display: flex; flex-wrap: wrap; gap: 6px; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line); }
   .row .group:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
+  a.ctl { text-decoration: none; }
   .ctl {
-    border: 1px solid var(--line); background: var(--raise); border-radius: 7px;
+    border: 1px solid var(--line); background: var(--raise); border-radius: 999px;
     padding: 6px 12px; cursor: pointer; font-size: 14px; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 7px;
   }
@@ -166,6 +170,8 @@
   .ctl[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
   .animal { flex: 1 1 110px; justify-content: center; font-weight: 700; padding-block: 8px; }
   .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); border-color: var(--leaf); }
+  .home { color: var(--amber); text-decoration: none; font-size: 13px; }
+  .home:hover { text-decoration: underline; }
   .readout { font-size: 13px; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center; }
   .key { font-size: 11px; opacity: .6; font-weight: 400; }
 
@@ -173,6 +179,10 @@
     .row .group { border-right: 0; padding-right: 0; margin-right: 0; }
     .key { display: none; }
     .ctl { padding: 6px 9px; font-size: 13px; }
+  }
+  @media (max-width: 480px) {
+    .ficha { font-size: 11.5px; padding: 20px 10px 8px; }
+    .hud .eye, .hud .stats { font-size: 11px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .pane { transition: none; }
@@ -204,6 +214,7 @@
 
   <div class="intro" id="intro">
     <div class="intro-card">
+      <a class="home" href="../">← Guías de polinización</a>
       <h1>Visión de <span>polinizadores</span></h1>
       <p>Mira tu entorno como lo verían una abeja, una mariposa, un colibrí y otros cuatro polinizadores:
         sus colores, sus ojos de mil facetas y su forma de percibir el movimiento.</p>
@@ -244,6 +255,7 @@
       <button class="ctl" id="btnShot">Captura <span class="key">S</span></button>
       <button class="ctl" id="btnFull">Pantalla completa <span class="key">F</span></button>
       <button class="ctl" id="btnSource">Cambiar fuente</button>
+      <a class="ctl" href="../">Inicio</a>
     </div>
   </div>
 </nav>
