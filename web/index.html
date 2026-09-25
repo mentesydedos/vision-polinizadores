@@ -406,6 +406,13 @@ uniform vec2 uCenter;
 uniform vec3 uM0, uM1, uM2;
 out vec4 o;
 
+// Cuánto se parece un color al amarillo (de naranja a amarillo verdoso, con saturación).
+float yellowness(vec3 c) {
+  float ratio = c.g / (c.r + 1e-3);
+  float hue = smoothstep(.45, .62, ratio) * (1. - smoothstep(1.15, 1.4, ratio));
+  return smoothstep(.08, .28, min(c.r, c.g) - c.b) * hue;
+}
+
 float hash(vec2 p) { return fract(sin(dot(mod(p, 1024.), vec2(12.9898, 78.233))) * 43758.5453); }
 
 // Coordenadas del panel (0..1, y hacia abajo) -> coordenadas del video, recortando
@@ -462,6 +469,7 @@ void main() {
   uv = uCenter + (uv - .5) / uZoom;   // zoom de la cámara
   vec2 v = paneToVideo(uv);
   vec3 c = sampleBlur(v);
+  vec3 c0 = c;   // color real de la cámara, antes de la visión del animal
 
   if (uColor > .5) {
     c = clamp(vec3(dot(uM0, c), dot(uM1, c), dot(uM2, c)), 0., 1.);
@@ -473,10 +481,9 @@ void main() {
   if (uMotion > .5) c = mix(c, vec3(1., .902, .157), .45 * texture(uTrail, v).r);
 
   if (uSparkle > .5) {
-    // Destellos dorados sobre lo amarillo de la simulación (tonos entre naranja y amarillo).
-    float ratio = c.g / (c.r + 1e-3);
-    float hue = smoothstep(.45, .65, ratio) * (1. - smoothstep(1.1, 1.35, ratio));
-    float yel = smoothstep(.1, .32, min(c.r, c.g) - c.b) * hue;
+    // Destellos dorados sobre lo amarillo: de la escena real (hilos, flores…)
+    // aunque el animal lo vea de otro color, y de la simulación (estelas de movimiento).
+    float yel = max(yellowness(c0), yellowness(c));
     c = mix(c, c * vec3(1.08, .96, .72) + vec3(.06, .04, 0.), yel * .35);   // brillo dorado
     float h1 = hash(cell * 1.37 + 7.1), h2 = hash(cell.yx * 3.11 + 1.3);
     float ph = fract(uTime * (.3 + .6 * h2) + h1);
