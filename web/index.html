@@ -81,7 +81,9 @@
   .pane video, .pane img, .pane canvas {
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
   }
-  .mirror { transform: scaleX(-1); }
+  .pane video, .pane img { transform-origin: 0 0; }
+  .stage.zoomed { cursor: grab; touch-action: none; }
+  .stage.panning { cursor: grabbing; }
 
   .tag, .hud, .ficha { position: absolute; text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none; }
   .tag { left: 14px; top: 10px; font: 700 22px/1.2 var(--display); text-transform: uppercase; letter-spacing: .04em; }
@@ -172,6 +174,7 @@
   .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); border-color: var(--leaf); }
   .home { color: var(--amber); text-decoration: none; font-size: 13px; }
   .home:hover { text-decoration: underline; }
+  .ctl-readout { background: none; border: 0; cursor: pointer; padding: 0 4px; }
   .readout { font-size: 13px; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center; }
   .key { font-size: 11px; opacity: .6; font-weight: 400; }
 
@@ -248,6 +251,11 @@
       <button class="ctl" id="btnLess" aria-label="Facetas más pequeñas">−</button>
       <span class="readout" id="facetReadout">9 px</span>
       <button class="ctl" id="btnMore" aria-label="Facetas más grandes">+</button>
+    </div>
+    <div class="group" role="group" aria-label="Zoom de la cámara">
+      <button class="ctl" id="btnZoomOut" aria-label="Alejar">−</button>
+      <button class="readout ctl-readout" id="zoomReadout" title="Volver a 1× (tecla 0)">Zoom 1.0×</button>
+      <button class="ctl" id="btnZoomIn" aria-label="Acercar">+</button>
     </div>
     <div class="group" role="group" aria-label="Opciones">
       <button class="ctl" id="btnInfo" aria-pressed="true">Ficha <span class="key">I</span></button>
@@ -346,6 +354,8 @@ const state = {
   info: true,
   voice: true,
   hex: 9,
+  zoom: 1,
+  center: [0.5, 0.5],   // centro del zoom, en coordenadas de pantalla (0..1)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -390,7 +400,8 @@ uniform sampler2D uVideo, uTrail;
 uniform vec2 uRes;
 uniform float uVideoAspect, uMirror;
 uniform float uColor, uFish, uHex, uMotion, uVig, uBorders;
-uniform float uFishK, uFacet, uLod, uNight, uTime;
+uniform float uFishK, uFacet, uLod, uNight, uTime, uZoom;
+uniform vec2 uCenter;
 uniform vec3 uM0, uM1, uM2;
 out vec4 o;
 
@@ -444,6 +455,7 @@ void main() {
     uv = n * ((1. - uFishK) + uFishK * r * r) * .5 + .5;
   }
   if (any(lessThan(uv, vec2(0.))) || any(greaterThan(uv, vec2(1.)))) { o = vec4(0., 0., 0., 1.); return; }
+  uv = uCenter + (uv - .5) / uZoom;   // zoom de la cámara
   vec2 v = paneToVideo(uv);
   vec3 c = sampleBlur(v);
 
@@ -541,7 +553,6 @@ function watchFrames(video) {
 function useVideo(kind) {
   humanImg.hidden = true;
   humanVideo.hidden = false;
-  humanVideo.classList.toggle("mirror", kind === "camera");
   source = { el: humanVideo, kind, isImage: false };
   framesSinceSource = 0;
   lastVideoTime = -1;
@@ -779,6 +790,100 @@ function syncUI() {
   $("ficha").hidden = !state.info;
 }
 
+/* ---------------------------------------------------------------- zoom
+   Zoom digital de la cámara: se aplica igual a la imagen real y a la simulación.
+   Rueda del ratón = acercar hacia el puntero, arrastrar = moverse,
+   doble clic = volver a 1×, pellizco en pantallas táctiles. */
+const ZOOM_MIN = 1, ZOOM_MAX = 6;
+
+function setZoom(z, anchor) {
+  const old = state.zoom;
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  if (anchor) {
+    // mantiene fijo el punto bajo el puntero
+    const [px, py] = anchor, [cx, cy] = state.center;
+    const qx = cx + (px - .5) / old, qy = cy + (py - .5) / old;
+    state.center = [qx - (px - .5) / z, qy - (py - .5) / z];
+  }
+  state.zoom = z;
+  clampCenter();
+  applyZoom();
+}
+
+function clampCenter() {
+  const h = .5 / state.zoom;
+  state.center = state.center.map((c) => Math.min(1 - h, Math.max(h, c)));
+}
+
+function applyZoom() {
+  const [cx, cy] = state.center, z = state.zoom;
+  const mirror = source && source.kind === "camera" ? " translate(100%, 0) scaleX(-1)" : "";
+  const t = `translate(50%, 50%) scale(${z}) translate(${-cx * 100}%, ${-cy * 100}%)${mirror}`;
+  humanVideo.style.transform = t;
+  humanImg.style.transform = t;
+  $("zoomReadout").textContent = `Zoom ${z.toFixed(1)}×`;
+  stage.classList.toggle("zoomed", z > 1.001);
+}
+
+// posición del puntero en el panel bajo él (0..1)
+function paneAt(e) {
+  for (const pane of [$("paneHuman"), $("paneAnimal")]) {
+    const r = pane.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      return { r, p: [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height] };
+    }
+  }
+  return null;
+}
+
+stage.addEventListener("wheel", (e) => {
+  if (!source) return;
+  const hit = paneAt(e);
+  if (!hit) return;
+  e.preventDefault();
+  setZoom(state.zoom * Math.exp(-e.deltaY * 0.0015), hit.p);
+}, { passive: false });
+
+const pointers = new Map();
+let pinchStart = null;
+stage.addEventListener("pointerdown", (e) => {
+  if (!source || e.target.closest("button, a")) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  stage.setPointerCapture(e.pointerId);
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchStart = { d: Math.hypot(a.x - b.x, a.y - b.y), z: state.zoom };
+  }
+  if (state.zoom > 1.001) stage.classList.add("panning");
+});
+stage.addEventListener("pointermove", (e) => {
+  const prev = pointers.get(e.pointerId);
+  if (!prev) return;
+  const cur = { x: e.clientX, y: e.clientY };
+  pointers.set(e.pointerId, cur);
+  if (pointers.size === 2 && pinchStart) {
+    const [a, b] = [...pointers.values()];
+    const mid = { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+    const hit = paneAt(mid);
+    setZoom(pinchStart.z * Math.hypot(a.x - b.x, a.y - b.y) / pinchStart.d, hit && hit.p);
+  } else if (pointers.size === 1 && state.zoom > 1.001) {
+    const hit = paneAt(e);
+    if (!hit) return;
+    state.center = [state.center[0] - (cur.x - prev.x) / (hit.r.width * state.zoom),
+                    state.center[1] - (cur.y - prev.y) / (hit.r.height * state.zoom)];
+    clampCenter();
+    applyZoom();
+  }
+});
+const endPointer = (e) => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchStart = null;
+  if (!pointers.size) stage.classList.remove("panning");
+};
+stage.addEventListener("pointerup", endPointer);
+stage.addEventListener("pointercancel", endPointer);
+stage.addEventListener("dblclick", (e) => { if (source && !e.target.closest("button, a")) setZoom(1); });
+
 function changeFacet(step) {
   state.hex = Math.min(40, Math.max(3, state.hex + step));
   syncUI();
@@ -820,6 +925,7 @@ function showIntro() {
 function begin() {
   $("intro").hidden = true;
   showIntroError("");
+  applyZoom();
   selectAnimal(state.animal);
 }
 
@@ -831,6 +937,9 @@ $("btnBack").addEventListener("click", () => ($("intro").hidden = true));
 $("btnBorders").addEventListener("click", () => { state.borders = !state.borders; syncUI(); });
 $("btnLess").addEventListener("click", () => changeFacet(-1));
 $("btnMore").addEventListener("click", () => changeFacet(1));
+$("btnZoomIn").addEventListener("click", () => setZoom(state.zoom * 1.25));
+$("btnZoomOut").addEventListener("click", () => setZoom(state.zoom / 1.25));
+$("zoomReadout").addEventListener("click", () => setZoom(1));
 $("btnInfo").addEventListener("click", () => { state.info = !state.info; syncUI(); });
 $("btnVoice").addEventListener("click", toggleVoice);
 $("btnShot").addEventListener("click", () => (captureRequested = true));
@@ -850,6 +959,9 @@ document.addEventListener("keydown", (e) => {
   else if (k === "arrowleft") selectAnimal((state.animal + ANIMALS.length - 1) % ANIMALS.length);
   else if (k === "s") captureRequested = true;
   else if (k === "f") toggleFullscreen();
+  else if (k === "z") setZoom(state.zoom * 1.25);
+  else if (k === "x") setZoom(state.zoom / 1.25);
+  else if (k === "0") setZoom(1);
   else return;
   e.preventDefault();
 });
@@ -891,9 +1003,11 @@ function capture() {
   const [hx, hy, hw, hh] = rect($("paneHuman"));
   const el = source.el, [sw, sh] = mediaSize(el);
   const scale = Math.max(hw / sw, hh / sh), cw = hw / scale, ch = hh / scale;
+  const mirrored = source.kind === "camera", z = state.zoom, [zx, zy] = state.center;
+  const fx = mirrored ? 1 - zx - .5 / z : zx - .5 / z;   // zona visible con el zoom
   ctx.save();
-  if (source.kind === "camera") { ctx.translate(hx + hw, hy); ctx.scale(-1, 1); } else ctx.translate(hx, hy);
-  ctx.drawImage(el, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, hw, hh);
+  if (mirrored) { ctx.translate(hx + hw, hy); ctx.scale(-1, 1); } else ctx.translate(hx, hy);
+  ctx.drawImage(el, (sw - cw) / 2 + fx * cw, (sh - ch) / 2 + (zy - .5 / z) * ch, cw / z, ch / z, 0, 0, hw, hh);
   ctx.restore();
   if (stage.classList.contains("big")) {
     ctx.strokeStyle = "#ecebe3"; ctx.lineWidth = 3; ctx.strokeRect(hx, hy, hw, hh);
@@ -989,6 +1103,8 @@ function frame(now) {
   ["uColor", "uFish", "uHex", "uMotion", "uVig"].forEach((n, i) => gl.uniform1f(u(n), state.flags[i] ? 1 : 0));
   gl.uniform1f(u("uBorders"), state.borders ? 1 : 0);
   gl.uniform1f(u("uFishK"), a.fisheye);
+  gl.uniform1f(u("uZoom"), state.zoom);
+  gl.uniform2f(u("uCenter"), state.center[0], state.center[1]);
   gl.uniform1f(u("uFacet"), Math.max(3, state.hex * s));
   gl.uniform1f(u("uLod"), sigmaTex > 0 ? Math.log2(1 + sigmaTex * 1.6) : 0);
   gl.uniform1f(u("uNight"), a.night);
