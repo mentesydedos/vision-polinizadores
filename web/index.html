@@ -174,6 +174,8 @@
   .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); border-color: var(--leaf); }
   .home { color: var(--amber); text-decoration: none; font-size: 13px; }
   .home:hover { text-decoration: underline; }
+  .cam-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+  .cam-pick select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; max-width: 220px; }
   .ctl-readout { background: none; border: 0; cursor: pointer; padding: 0 4px; }
   .readout { font-size: 13px; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center; }
   .key { font-size: 11px; opacity: .6; font-weight: 400; }
@@ -234,6 +236,8 @@
         <button class="btn" id="btnDemo">Ver demostración</button>
         <button class="btn" id="btnBack" hidden>Volver</button>
       </div>
+      <label class="cam-pick" id="camPickIntro" hidden>Cámara
+        <select id="camSelectIntro"></select></label>
       <div class="error" id="introError" role="alert" hidden></div>
       <p class="note">La imagen se procesa en tu computador y no se envía a ningún sitio.
         La narración se escucha con sonido: sube el volumen.</p>
@@ -263,6 +267,8 @@
       <button class="ctl" id="btnShot">Captura <span class="key">S</span></button>
       <button class="ctl" id="btnFull">Pantalla completa <span class="key">F</span></button>
       <button class="ctl" id="btnSource">Cambiar fuente</button>
+      <label class="ctl cam-pick" id="camPickBar" hidden>Cámara
+        <select id="camSelectBar"></select></label>
       <a class="ctl" href="../">Inicio</a>
     </div>
   </div>
@@ -531,6 +537,8 @@ function initGL() {
 let source = null;        // { el, kind: "camera" | "file" | "demo", isImage }
 let stream = null, demoTimer = null;
 let newFrame = false, framesSinceSource = 0, lastVideoTime = -1;
+let camDeviceId = null, reconnecting = false, lastFrameAt = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function stopSource() {
   if (stream) stream.getTracks().forEach((t) => t.stop());
@@ -557,36 +565,115 @@ function useVideo(kind) {
   framesSinceSource = 0;
   lastVideoTime = -1;
   watchFrames(humanVideo);
-  return humanVideo.play().catch(() => {});
+  // play() no termina si la cámara no manda imagen; no esperar más de 4 s
+  return Promise.race([humanVideo.play().catch(() => {}), sleep(4000)]);
 }
 
-async function startCamera() {
-  showIntroError("");
+// Abre la cámara probando primero en alta resolución y después sin exigir tamaño
+// (algunas webcams USB antiguas fallan con 1280x720). Reintenta si está ocupada.
+async function openStream(deviceId, rounds) {
+  const base = deviceId ? { deviceId: { exact: deviceId } } : {};
+  const attempts = [{ ...base, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    Object.keys(base).length ? base : true];
+  let lastErr;
+  for (let round = 0; round < rounds; round++) {
+    for (const video of attempts) {
+      try { return await navigator.mediaDevices.getUserMedia({ video, audio: false }); }
+      catch (err) {
+        lastErr = err;
+        if (err.name === "NotAllowedError" || err.name === "SecurityError") throw err;
+      }
+    }
+    if (round < rounds - 1) await sleep(1000);
+  }
+  throw lastErr;
+}
+
+async function startCamera(deviceId = camDeviceId, { silent = false } = {}) {
+  if (!silent) showIntroError("");
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showIntroError("Este navegador no permite usar la cámara en esta página. Abre el archivo index.html directamente con Chrome, Edge o Firefox, o desde una dirección https.");
-    return;
+    showIntroError("Este navegador no permite usar la cámara en esta página. Ábrela desde una dirección https (por ejemplo, la de GitHub Pages) con Chrome, Edge o Firefox.");
+    return false;
   }
   try {
-    const s = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
-    });
+    const s = await openStream(deviceId, silent ? 1 : 3);
     stopSource();
     stream = s;
+    const track = s.getVideoTracks()[0];
+    camDeviceId = track.getSettings().deviceId || deviceId || null;
+    track.addEventListener("ended", () => { if (stream === s) reconnectCamera(); });
     humanVideo.srcObject = s;
     await useVideo("camera");
-    begin();
+    lastFrameAt = performance.now() + 5000;   // margen extra para el primer cuadro
+    listCameras();
+    if (silent) applyZoom(); else begin();
+    return true;
   } catch (err) {
+    if (silent) return false;
     if (err.name === "NotAllowedError") {
       showIntroError("No se dio permiso para usar la cámara. Haz clic en el icono de la cámara en la barra de direcciones, elige “Permitir” y vuelve a intentarlo.");
     } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
-      showIntroError("No se encontró ninguna cámara. Puedes usar un video o una foto, o ver la demostración.");
-    } else if (err.name === "NotReadableError") {
-      showIntroError("La cámara está ocupada por otra aplicación (por ejemplo, la versión de Python o una videollamada). Ciérrala y vuelve a intentarlo.");
+      showIntroError("No se encontró la cámara. Revisa que esté conectada o elige otra en la lista. También puedes usar un video o una foto, o ver la demostración.");
+    } else if (err.name === "NotReadableError" || err.name === "AbortError") {
+      showIntroError("No se pudo leer la cámara: puede que otra aplicación la esté usando o que se haya desconectado. Si es una cámara USB, desconéctala y vuelve a conectarla (mejor directo al computador, sin hub). Si sigue igual, elige otra cámara en la lista o cierra y vuelve a abrir el navegador.");
     } else {
       showIntroError("No se pudo abrir la cámara: " + err.message);
     }
+    listCameras();
+    return false;
   }
 }
+
+// Si la cámara se corta o deja de mandar imagen, se intenta reconectar sola.
+async function reconnectCamera() {
+  if (reconnecting || !source || source.kind !== "camera") return;
+  reconnecting = true;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  for (let i = 1; i <= 15; i++) {
+    if (!source || source.kind !== "camera") break;      // se eligió otra fuente
+    toast(`Se perdió la señal de la cámara. Reconectando… (intento ${i})`);
+    if (await startCamera(camDeviceId, { silent: true })) {
+      toast("Cámara reconectada.");
+      reconnecting = false;
+      return;
+    }
+    await sleep(2000);
+  }
+  const lost = source && source.kind === "camera";
+  reconnecting = false;
+  if (lost) {
+    showIntro();
+    showIntroError("La cámara dejó de responder. Si es una cámara USB, desconéctala y vuelve a conectarla, o elige otra cámara, y pulsa “Encender cámara”.");
+  }
+}
+
+async function listCameras() {
+  if (!navigator.mediaDevices?.enumerateDevices) return;
+  const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+  const usable = cams.length > 1 && cams.every((d) => d.deviceId);   // sin permiso no hay identificadores
+  for (const id of ["camSelectIntro", "camSelectBar"]) {
+    const sel = $(id);
+    sel.replaceChildren(...cams.map((d, i) => new Option(d.label || `Cámara ${i + 1}`, d.deviceId)));
+    if (camDeviceId) sel.value = camDeviceId;
+  }
+  $("camPickIntro").hidden = !usable;
+  $("camPickBar").hidden = !usable;
+}
+
+$("camSelectIntro").addEventListener("change", (e) => { camDeviceId = e.target.value; });
+$("camSelectBar").addEventListener("change", async (e) => {
+  camDeviceId = e.target.value;
+  if (source && source.kind === "camera") {
+    toast("Cambiando de cámara…");
+    if (!(await startCamera(camDeviceId, { silent: true }))) {
+      toast("No se pudo abrir esa cámara. Puede estar desconectada o en uso.");
+      listCameras();
+    }
+  }
+});
+navigator.mediaDevices?.addEventListener?.("devicechange", listCameras);
+document.addEventListener("visibilitychange", () => { lastFrameAt = performance.now(); });
+listCameras();
 
 function startFile(file) {
   if (!file) return;
@@ -929,7 +1016,7 @@ function begin() {
   selectAnimal(state.animal);
 }
 
-$("btnCamera").addEventListener("click", startCamera);
+$("btnCamera").addEventListener("click", () => startCamera(camDeviceId));
 $("btnFile").addEventListener("click", () => $("fileInput").click());
 $("fileInput").addEventListener("change", (e) => { startFile(e.target.files[0]); e.target.value = ""; });
 $("btnDemo").addEventListener("click", startDemo);
@@ -1041,6 +1128,9 @@ function frame(now) {
   }
   if (!source) return;
 
+  // Cámara congelada más de 5 s: reconectar.
+  if (source.kind === "camera" && !reconnecting && now - lastFrameAt > 5000) reconnectCamera();
+
   const el = source.el;
   const [vw, vh] = mediaSize(el);
   if (!vw || !vh) return;
@@ -1060,6 +1150,7 @@ function frame(now) {
 
   if (newFrame && (source.isImage || el.readyState >= 2)) {
     newFrame = false;
+    lastFrameAt = now;
     framesSinceSource++;
     gl.bindTexture(gl.TEXTURE_2D, videoTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el);
