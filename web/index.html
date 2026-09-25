@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Visión de Polinizadores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  /* Tema único oscuro a propósito: es un visor de video, como una sala oscura. */
+  :root {
+    color-scheme: dark;
+    --bg: #11120e;
+    --panel: #1b1d17;
+    --raise: #272a21;
+    --raise-hover: #32362a;
+    --line: #363a2e;
+    --text: #ecebe3;
+    --muted: #a4a697;
+    --amber: #e8a33d;      /* filtro activo */
+    --amber-ink: #231703;
+    --leaf: #5fb46c;       /* animal elegido */
+    --leaf-ink: #0d2111;
+    --focus: #f6d488;
+    --uv: #9b6cff;
+    --blue: #4f8cff;
+    --green: #4fc46a;
+    --red: #e0533d;
+    --rod: #b9bab0;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 var(--body);
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow: hidden;
+  }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ------------------------------------------------------------ escenario */
+  .stage { position: relative; flex: 1; min-height: 55%; background: #000; overflow: hidden; }
+  .pane {
+    position: absolute;
+    overflow: hidden;
+    background: #000;
+    transition: left .55s cubic-bezier(.2,.75,.2,1), top .55s cubic-bezier(.2,.75,.2,1),
+                width .55s cubic-bezier(.2,.75,.2,1), height .55s cubic-bezier(.2,.75,.2,1),
+                border-width .55s, border-radius .55s;
+  }
+  .pane-human  { left: 0;   top: 0; width: 50%; height: 100%; z-index: 2; border: 0 solid var(--text); }
+  .pane-animal { left: 50%; top: 0; width: 50%; height: 100%; z-index: 1; }
+  .stage.portrait .pane-human  { width: 100%; height: 50%; }
+  .stage.portrait .pane-animal { left: 0; top: 50%; width: 100%; height: 50%; }
+
+  /* Modo narración: el animal ocupa todo y la imagen real queda en un recuadro */
+  .stage { --inset-w: clamp(150px, 22%, 340px); }
+  .stage.portrait { --inset-w: clamp(120px, 38%, 260px); }
+  .stage.big .pane-animal { left: 0; top: 0; width: 100%; height: 100%; }
+  .stage.big .pane-human {
+    left: calc(100% - 16px - var(--inset-w));
+    top: 16px;
+    width: var(--inset-w);
+    height: calc(var(--inset-w) * .75);
+    border-width: 3px;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.55);
+  }
+
+  .pane video, .pane img, .pane canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .mirror { transform: scaleX(-1); }
+
+  .tag, .hud, .ficha { position: absolute; text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none; }
+  .tag { left: 14px; top: 10px; font: 800 22px/1.2 var(--display); }
+  .stage.big .tag { left: 8px; top: 4px; font-size: 15px; }
+  .hud { left: 14px; top: 10px; right: 14px; display: grid; gap: 2px; }
+  .hud .name { font: 800 clamp(22px, 3.2vw, 34px)/1.1 var(--display); letter-spacing: -.01em; }
+  .hud .eye { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #dcdbd2; }
+  .hud .stats { font-size: 12px; color: #c9c9bf; font-variant-numeric: tabular-nums; }
+  .hud .narr { font-size: 13px; font-weight: 700; color: #ffd98a; display: flex; align-items: center; gap: 6px; }
+  .hud .narr::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ffd98a;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .ficha {
+    left: 0; right: 0; bottom: 0;
+    padding: 28px 16px 12px;
+    background: linear-gradient(transparent, rgba(0,0,0,.72) 40%);
+    font-size: 14px;
+  }
+  .ficha p { margin: 0; max-width: 70ch; }
+
+  .chips { display: inline-flex; gap: 3px; }
+  .chip { width: 11px; height: 11px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+  .chip.uv { background: var(--uv); } .chip.b { background: var(--blue); }
+  .chip.g { background: var(--green); } .chip.r { background: var(--red); } .chip.rod { background: var(--rod); }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 14px; font-size: 14px; z-index: 5; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  }
+
+  /* ------------------------------------------------------------ portada */
+  .intro {
+    position: absolute; inset: 0; z-index: 10;
+    display: grid; place-items: center;
+    padding: 24px 16px;
+    overflow-y: auto;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(232,163,61,.16), transparent 60%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0l28 16v32L28 64 0 48V16zM28 64v33' fill='none' stroke='%23e8a33d' stroke-opacity='.09' stroke-width='1.5'/%3E%3C/svg%3E"),
+      var(--bg);
+  }
+  .intro-card { max-width: 620px; display: grid; gap: 18px; }
+  .intro h1 {
+    margin: 0; font: 800 clamp(34px, 6vw, 60px)/1 var(--display); letter-spacing: -.02em; text-wrap: balance;
+  }
+  .intro h1 span { color: var(--amber); }
+  .intro p { margin: 0; color: #d4d3c9; max-width: 60ch; }
+  .intro .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .intro .note { font-size: 13px; color: var(--muted); }
+  .spectrum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .spectrum span { display: inline-flex; align-items: center; gap: 6px; }
+  .error {
+    border: 1px solid #7a3a33; background: #2a1512; color: #ffd0c8;
+    padding: 10px 12px; border-radius: 8px; font-size: 14px;
+  }
+
+  .btn {
+    border: 1px solid var(--line); background: var(--raise); border-radius: 8px;
+    padding: 10px 16px; cursor: pointer; font-weight: 700;
+  }
+  .btn:hover { background: var(--raise-hover); }
+  .btn.primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+  .btn.primary:hover { background: #f1b457; }
+
+  /* ------------------------------------------------------------ barra de controles */
+  .bar {
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding-block: 8px; padding-inline: 16px;
+    display: grid; gap: 8px;
+    max-height: 45%; overflow-y: auto;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .row .group { display: flex; flex-wrap: wrap; gap: 6px; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line); }
+  .row .group:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
+  .ctl {
+    border: 1px solid var(--line); background: var(--raise); border-radius: 7px;
+    padding: 6px 12px; cursor: pointer; font-size: 14px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .ctl:hover { background: var(--raise-hover); }
+  .ctl[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+  .animal { flex: 1 1 110px; justify-content: center; font-weight: 700; padding-block: 8px; }
+  .animal[aria-pressed="true"] { background: var(--leaf); color: var(--leaf-ink); border-color: var(--leaf); }
+  .readout { font-size: 13px; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center; }
+  .key { font-size: 11px; opacity: .6; font-weight: 400; }
+
+  @media (max-width: 700px) {
+    .row .group { border-right: 0; padding-right: 0; margin-right: 0; }
+    .key { display: none; }
+    .ctl { padding: 6px 9px; font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pane { transition: none; }
+    .hud .narr::before { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<main class="stage" id="stage">
+  <section class="pane pane-human" id="paneHuman" aria-label="Imagen real">
+    <video id="humanVideo" autoplay muted playsinline></video>
+    <img id="humanImg" alt="Imagen elegida" hidden>
+    <div class="tag">Humano</div>
+  </section>
+
+  <section class="pane pane-animal" id="paneAnimal" aria-label="Simulación de la visión del animal">
+    <canvas id="gl"></canvas>
+    <div class="hud">
+      <div class="name" id="hudName">Abeja</div>
+      <div class="eye"><span id="hudEye">Ojo compuesto</span><span class="chips" id="hudChips"></span></div>
+      <div class="stats" id="hudStats"></div>
+      <div class="narr" id="hudNarr" hidden>Narrando…</div>
+    </div>
+    <div class="ficha" id="ficha"><p id="ficha1"></p><p id="ficha2"></p></div>
+  </section>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <div class="intro" id="intro">
+    <div class="intro-card">
+      <h1>Visión de <span>polinizadores</span></h1>
+      <p>Mira tu entorno como lo verían una abeja, una mariposa, un colibrí y otros cuatro polinizadores:
+        sus colores, sus ojos de mil facetas y su forma de percibir el movimiento.</p>
+      <div class="spectrum" aria-label="Tipos de fotorreceptores">
+        <span><i class="chip uv"></i>Ultravioleta</span>
+        <span><i class="chip b"></i>Azul</span>
+        <span><i class="chip g"></i>Verde</span>
+        <span><i class="chip r"></i>Rojo</span>
+        <span><i class="chip rod"></i>Bastones (visión nocturna)</span>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btnCamera">Encender cámara</button>
+        <button class="btn" id="btnFile">Usar un video o foto</button>
+        <button class="btn" id="btnDemo">Ver demostración</button>
+        <button class="btn" id="btnBack" hidden>Volver</button>
+      </div>
+      <div class="error" id="introError" role="alert" hidden></div>
+      <p class="note">La imagen se procesa en tu computador y no se envía a ningún sitio.
+        La narración usa la voz del navegador; en Chrome y Edge suena en español.</p>
+      <input type="file" id="fileInput" accept="video/*,image/*" hidden>
+    </div>
+  </div>
+</main>
+
+<nav class="bar" aria-label="Controles">
+  <div class="row" id="rowAnimals" role="group" aria-label="Animal"></div>
+  <div class="row">
+    <div class="group" role="group" aria-label="Filtros" id="groupFilters"></div>
+    <div class="group" role="group" aria-label="Facetas">
+      <button class="ctl" id="btnBorders" aria-pressed="true">Bordes <span class="key">B</span></button>
+      <button class="ctl" id="btnLess" aria-label="Facetas más pequeñas">−</button>
+      <span class="readout" id="facetReadout">9 px</span>
+      <button class="ctl" id="btnMore" aria-label="Facetas más grandes">+</button>
+    </div>
+    <div class="group" role="group" aria-label="Opciones">
+      <button class="ctl" id="btnInfo" aria-pressed="true">Ficha <span class="key">I</span></button>
+      <button class="ctl" id="btnVoice" aria-pressed="true">Narrar <span class="key">N</span></button>
+      <button class="ctl" id="btnShot">Captura <span class="key">S</span></button>
+      <button class="ctl" id="btnFull">Pantalla completa <span class="key">F</span></button>
+      <button class="ctl" id="btnSource">Cambiar fuente</button>
+    </div>
+  </div>
+</nav>
+
+<script>
+"use strict";
+
+/* ================================================================ perfiles
+   La cámara solo capta rojo, verde y azul. El UV se estima: las zonas azuladas,
+   blancas y el cielo reflejan mucho UV; las rojas y oscuras, poco.
+   Vectores en orden (r, g, b). Cada matriz = filas de salida [R, G, B]. */
+const R = [1, 0, 0], G = [0, 1, 0], B = [0, 0, 1], UV = [-0.255, 0.09, 1.315];
+const lin = (...terms) => terms.reduce((acc, [k, v]) => acc.map((x, i) => x + k * v[i]), [0, 0, 0]);
+const GRAY = lin([0.4, UV], [0.3, B], [0.3, G]);
+
+const ANIMALS = [
+  {
+    name: "Abeja", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
+    info: ["Ve UV, azul y verde; el rojo le parece negro.",
+           "~5.500 omatidios por ojo · ~200 imágenes por segundo."],
+    narration: "Abeja melífera. Sus ojos compuestos tienen unas cinco mil quinientas facetas, llamadas omatidios, y cada una capta un solo punto de color, por eso ve el mundo como un mosaico. Ve el ultravioleta, el azul y el verde, pero no el rojo: para ella, el rojo es casi negro. Muchas flores tienen dibujos ultravioleta, invisibles para nosotros, que le señalan dónde está el néctar. Además percibe unas doscientas imágenes por segundo, así que nota el movimiento mucho más rápido que nosotros.",
+    matrix: [lin([0.9, G], [0.1, R]), lin([1.1, B]), UV],
+    compound: true, hex: 9, fisheye: 0.45, blur: 2.5, decay: 0.85, thresh: 18, night: 1, motion: true,
+  },
+  {
+    name: "Abejorro", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
+    info: ["Ve UV, azul y verde, como la abeja; ojos más grandes.",
+           "Algo más nítido y activo con menos luz (días nublados)."],
+    narration: "Abejorro. Ve los colores como la abeja: ultravioleta, azul y verde, sin el rojo. Sus ojos son más grandes y tienen más facetas, así que ve con algo más de detalle. Es de los pocos polinizadores que salen con frío, niebla o cielo nublado, y su vista funciona bien con poca luz. Puede aprender a reconocer las flores por su forma y por patrones que nosotros no vemos.",
+    matrix: [lin([0.95, G], [0.1, R]), lin([1.05, B], [0.05, G]), lin([0.9, UV], [0.1, B])],
+    compound: true, hex: 7, fisheye: 0.4, blur: 2.0, decay: 0.83, thresh: 18, night: 1.3, motion: true,
+  },
+  {
+    name: "Mariposa", eye: "Ojo compuesto", receptors: ["uv", "b", "g", "r"],
+    info: ["Hasta 6 tipos de fotorreceptores: ve UV y también el rojo.",
+           "~12.000 omatidios · colores muy saturados, flores con “guías” UV."],
+    narration: "Mariposa. Tiene alrededor de doce mil omatidios en cada ojo. Algunas especies, como la mariposa cola de golondrina, tienen seis tipos de fotorreceptores, el doble que nosotros: ven el ultravioleta y también el rojo. Por eso su mundo tiene colores muy intensos, y distingue matices que para nosotros son idénticos. Muchas mariposas tienen dibujos ultravioleta en las alas, que usan para reconocer a su pareja.",
+    matrix: [lin([1.25, R], [-0.2, G]), lin([1.15, G], [-0.1, R], [0.05, B]), lin([0.5, B], [0.55, UV])],
+    compound: true, hex: 6, fisheye: 0.5, blur: 1.8, decay: 0.8, thresh: 20, night: 1, motion: true,
+  },
+  {
+    name: "Sírfido", eye: "Ojo compuesto", receptors: ["uv", "b", "g"],
+    info: ["Mosca de las flores: ve UV, azul y verde.",
+           "Visión de movimiento ultrarrápida (~300 imágenes por segundo)."],
+    narration: "Sírfido, la mosca de las flores. Imita a las abejas con sus rayas amarillas y negras, pero es una mosca. Ve ultravioleta, azul y verde, y sus enormes ojos cubren casi todo lo que la rodea. Su visión del movimiento es de las más rápidas del reino animal: capta unas trescientas imágenes por segundo. Eso le permite quedarse suspendida en el aire y perseguir a otros insectos con gran precisión.",
+    matrix: [lin([0.85, G], [0.15, R]), lin([1.05, B], [0.05, G]), UV],
+    compound: true, hex: 7, fisheye: 0.55, blur: 2.2, decay: 0.92, thresh: 10, night: 1, motion: true,
+  },
+  {
+    name: "Polilla", eye: "Ojo compuesto de superposición", receptors: ["uv", "b", "g"],
+    info: ["Polilla esfinge: ve en color de noche (UV, azul y verde).",
+           "Ojos de superposición: capta mucha luz pero ve borroso."],
+    narration: "Polilla esfinge. Vuela de noche y, a diferencia de nosotros, ve en color incluso a la luz de las estrellas. Sus ojos de superposición reúnen la luz de muchas facetas en cada punto de la imagen: así ve muy brillante, pero borroso y con grano. Ve ultravioleta, azul y verde, y busca sobre todo flores blancas o pálidas, que destacan en la oscuridad.",
+    matrix: [lin([0.9, G], [0.1, R]), lin([1.1, B]), UV],
+    compound: true, hex: 12, fisheye: 0.45, blur: 4.5, decay: 0.9, thresh: 14, night: 2.4, motion: true,
+  },
+  {
+    name: "Colibrí", eye: "Ojo tipo cámara", receptors: ["uv", "b", "g", "r"],
+    info: ["Ojo tipo cámara, muy nítido. Ve rojo, verde, azul y UV:",
+           "distingue colores “UV+verde” que nosotros no podemos ver."],
+    narration: "Colibrí. Sus ojos son de tipo cámara, como los nuestros, sin facetas, y muy nítidos. Pero tiene cuatro tipos de conos: rojo, verde, azul y ultravioleta. Gracias a eso percibe colores que para nosotros no existen, como el ultravioleta mezclado con verde o con rojo. Le atraen especialmente las flores rojas y tubulares, y su vista le ayuda a calcular distancias mientras flota frente a ellas.",
+    matrix: [lin([1, R], [0.25, UV]), lin([1, G], [0.1, UV]), lin([1, B], [0.35, UV])],
+    compound: false, hex: 9, fisheye: 0.15, blur: 0, decay: 0.6, thresh: 25, night: 1, motion: false,
+  },
+  {
+    name: "Murciélago", eye: "Ojo tipo cámara, nocturno", receptors: ["uv", "rod"],
+    info: ["Murciélago nectarívoro: visión nocturna casi en blanco y negro,",
+           "sensible al UV. Se guía sobre todo por ecolocalización y olfato."],
+    narration: "Murciélago nectarívoro. Es un polinizador nocturno muy importante, por ejemplo del agave. Su vista está adaptada a la oscuridad: ve casi en blanco y negro y con poca nitidez, pero es sensible al ultravioleta, lo que le ayuda a encontrar flores que lo reflejan. Para orientarse usa sobre todo la ecolocalización y su excelente olfato.",
+    matrix: [lin([0.8, GRAY]), GRAY, lin([1.1, GRAY])],
+    compound: false, hex: 9, fisheye: 0.1, blur: 3.0, decay: 0.7, thresh: 22, night: 2.8, motion: false,
+  },
+];
+
+const FILTERS = [
+  { label: "Color", key: "1" },
+  { label: "Ojo de pez", key: "2" },
+  { label: "Omatidios", key: "3" },
+  { label: "Movimiento", key: "4" },
+  { label: "Viñeta", key: "5" },
+];
+
+/* ================================================================ estado */
+const state = {
+  animal: 0,
+  flags: [true, true, true, true, true],
+  borders: true,
+  info: true,
+  voice: "speechSynthesis" in window,
+  hex: 9,
+};
+
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), glCanvas = $("gl");
+const humanVideo = $("humanVideo"), humanImg = $("humanImg");
+
+/* ================================================================ WebGL */
+const gl = glCanvas.getContext("webgl2", { antialias: false, alpha: false });
+
+const VERT = `#version 300 es
+void main() {
+  vec2 p = vec2[3](vec2(-1., -1.), vec2(3., -1.), vec2(-1., 3.))[gl_VertexID];
+  gl_Position = vec4(p, 0., 1.);
+}`;
+
+// Paso 1: estelas de movimiento. R = estela acumulada, G = luminancia del cuadro anterior.
+const TRAIL_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uVideo, uPrev;
+uniform vec2 uSize;
+uniform float uDecay, uThresh, uInit;
+out vec4 o;
+float lum(vec3 c) { return dot(c, vec3(.299, .587, .114)); }
+void main() {
+  vec2 uv = gl_FragCoord.xy / uSize, px = 1. / uSize;
+  float cur = lum(textureLod(uVideo, uv, 2.).rgb);
+  float m = 0.;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 q = uv + vec2(x, y) * px;
+    float a = lum(textureLod(uVideo, q, 2.).rgb);
+    float b = texture(uPrev, q).g;
+    m = max(m, step(uThresh, abs(a - b)));
+  }
+  float t = max(texture(uPrev, uv).r * uDecay, m * uInit);
+  o = vec4(t, cur, 0., 1.);
+}`;
+
+// Paso 2: la visión del animal.
+const MAIN_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uVideo, uTrail;
+uniform vec2 uRes;
+uniform float uVideoAspect, uMirror;
+uniform float uColor, uFish, uHex, uMotion, uVig, uBorders;
+uniform float uFishK, uFacet, uLod, uNight, uTime;
+uniform vec3 uM0, uM1, uM2;
+out vec4 o;
+
+float hash(vec2 p) { return fract(sin(dot(mod(p, 1024.), vec2(12.9898, 78.233))) * 43758.5453); }
+
+// Coordenadas del panel (0..1, y hacia abajo) -> coordenadas del video, recortando
+// como "object-fit: cover" para que coincida con la imagen real.
+vec2 paneToVideo(vec2 uv) {
+  float pa = uRes.x / uRes.y;
+  vec2 v = uv;
+  if (pa > uVideoAspect) v.y = .5 + (uv.y - .5) * (uVideoAspect / pa);
+  else                   v.x = .5 + (uv.x - .5) * (pa / uVideoAspect);
+  if (uMirror > .5) v.x = 1. - v.x;
+  return v;
+}
+
+vec3 sampleBlur(vec2 v) {
+  vec3 c = textureLod(uVideo, v, uLod).rgb;
+  if (uLod > .5) {
+    vec2 t = exp2(uLod) * .75 / vec2(textureSize(uVideo, 0));
+    c = (c * 2. + textureLod(uVideo, v + vec2(t.x, 0.), uLod).rgb + textureLod(uVideo, v - vec2(t.x, 0.), uLod).rgb
+                + textureLod(uVideo, v + vec2(0., t.y), uLod).rgb + textureLod(uVideo, v - vec2(0., t.y), uLod).rgb) / 6.;
+  }
+  return c;
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);  // píxel, y hacia abajo
+  vec2 sp = p;
+  float d = 0.;
+
+  if (uHex > .5) {
+    // Cuadrícula hexagonal (coordenadas cúbicas): cada omatidio toma un solo color.
+    float s = uFacet;
+    vec3 cube = vec3((sqrt(3.) / 3. * p.x - p.y / 3.) / s, (2. / 3. * p.y) / s, 0.);
+    cube.z = -cube.x - cube.y;
+    vec3 rc = round(cube), df = abs(rc - cube);
+    if (df.x > df.y && df.x > df.z) rc.x = -rc.y - rc.z;
+    else if (df.y > df.z)           rc.y = -rc.x - rc.z;
+    else                            rc.z = -rc.x - rc.y;
+    vec3 dd = abs(cube - rc);
+    d = max(dd.x, max(dd.y, dd.z)) * 2.;
+    sp = clamp(s * vec2(sqrt(3.) * (rc.x + rc.y * .5), 1.5 * rc.y), vec2(0.), uRes - 1.);
+  }
+
+  vec2 uv = sp / uRes;
+  if (uFish > .5) {
+    // Ojo de pez: el centro se amplía, los bordes se comprimen.
+    vec2 n = uv * 2. - 1.;
+    float r = min(length(n), 1.5);
+    uv = n * ((1. - uFishK) + uFishK * r * r) * .5 + .5;
+  }
+  if (any(lessThan(uv, vec2(0.))) || any(greaterThan(uv, vec2(1.)))) { o = vec4(0., 0., 0., 1.); return; }
+  vec2 v = paneToVideo(uv);
+  vec3 c = sampleBlur(v);
+
+  if (uColor > .5) {
+    c = clamp(vec3(dot(uM0, c), dot(uM1, c), dot(uM2, c)), 0., 1.);
+    if (uNight > 1.) {
+      c = min(pow(c, vec3(1. / uNight)) * 1.05, 1.);
+      c += (hash(sp + uTime * 61.7) - .5) * .0543 * uNight;
+    }
+  }
+  if (uMotion > .5) c = mix(c, vec3(1., .902, .157), .6 * texture(uTrail, v).r);
+  if (uHex > .5) {
+    float shade = clamp(1.08 - .25 * d * d, 0., 2.);
+    if (uBorders > .5 && d > 1. - 1.6 / uFacet) shade *= .25;
+    c *= shade;
+  }
+  if (uVig > .5) {
+    vec2 n = p / uRes * 2. - 1.;
+    c *= clamp(1.25 - .65 * dot(n, n), 0., 1.);
+  }
+  o = vec4(clamp(c, 0., 1.), 1.);
+}`;
+
+function makeProgram(fragSrc) {
+  const prog = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, VERT], [gl.FRAGMENT_SHADER, fragSrc]]) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    gl.attachShader(prog, sh);
+  }
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  const locs = {};
+  prog.u = (name) => (name in locs ? locs[name] : (locs[name] = gl.getUniformLocation(prog, name)));
+  return prog;
+}
+
+function makeTexture(w, h, mip) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (w) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  return t;
+}
+
+const TRAIL_W = 320, TRAIL_H = 240;
+let mainProg, trailProg, videoTex, trails, fbos, vao;
+let trailRead = 0;
+
+function initGL() {
+  mainProg = makeProgram(MAIN_FRAG);
+  trailProg = makeProgram(TRAIL_FRAG);
+  vao = gl.createVertexArray();
+  videoTex = makeTexture(0, 0, true);
+  trails = [makeTexture(TRAIL_W, TRAIL_H, false), makeTexture(TRAIL_W, TRAIL_H, false)];
+  fbos = trails.map((t) => {
+    const f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return f;
+  });
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+/* ================================================================ fuente de imagen */
+let source = null;        // { el, kind: "camera" | "file" | "demo", isImage }
+let stream = null, demoTimer = null;
+let newFrame = false, framesSinceSource = 0, lastVideoTime = -1;
+
+function stopSource() {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null;
+  if (demoTimer) cancelAnimationFrame(demoTimer);
+  demoTimer = null;
+  humanVideo.pause();
+  humanVideo.srcObject = null;
+  humanVideo.removeAttribute("src");
+  source = null;
+}
+
+function watchFrames(video) {
+  if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+    const cb = () => { newFrame = true; if (source && source.el === video) video.requestVideoFrameCallback(cb); };
+    video.requestVideoFrameCallback(cb);
+  }
+}
+
+function useVideo(kind) {
+  humanImg.hidden = true;
+  humanVideo.hidden = false;
+  humanVideo.classList.toggle("mirror", kind === "camera");
+  source = { el: humanVideo, kind, isImage: false };
+  framesSinceSource = 0;
+  lastVideoTime = -1;
+  watchFrames(humanVideo);
+  return humanVideo.play().catch(() => {});
+}
+
+async function startCamera() {
+  showIntroError("");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showIntroError("Este navegador no permite usar la cámara en esta página. Abre el archivo index.html directamente con Chrome, Edge o Firefox, o desde una dirección https.");
+    return;
+  }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+    });
+    stopSource();
+    stream = s;
+    humanVideo.srcObject = s;
+    await useVideo("camera");
+    begin();
+  } catch (err) {
+    if (err.name === "NotAllowedError") {
+      showIntroError("No se dio permiso para usar la cámara. Haz clic en el icono de la cámara en la barra de direcciones, elige “Permitir” y vuelve a intentarlo.");
+    } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
+      showIntroError("No se encontró ninguna cámara. Puedes usar un video o una foto, o ver la demostración.");
+    } else if (err.name === "NotReadableError") {
+      showIntroError("La cámara está ocupada por otra aplicación (por ejemplo, la versión de Python o una videollamada). Ciérrala y vuelve a intentarlo.");
+    } else {
+      showIntroError("No se pudo abrir la cámara: " + err.message);
+    }
+  }
+}
+
+function startFile(file) {
+  if (!file) return;
+  stopSource();
+  const url = URL.createObjectURL(file);
+  if (file.type.startsWith("image/")) {
+    humanVideo.hidden = true;
+    humanImg.hidden = false;
+    humanImg.onload = () => {
+      source = { el: humanImg, kind: "file", isImage: true };
+      framesSinceSource = 0;
+      newFrame = true;
+      begin();
+    };
+    humanImg.src = url;
+  } else {
+    humanVideo.src = url;
+    humanVideo.loop = true;
+    useVideo("file").then(begin);
+  }
+}
+
+// Escena de demostración: prado con flores de colores y una abeja que vuela.
+function startDemo() {
+  stopSource();
+  const c = document.createElement("canvas");
+  c.width = 960; c.height = 540;
+  const ctx = c.getContext("2d");
+  const flowers = [
+    [150, 330, "#e02b2b", 46], [330, 300, "#f5d20a", 40], [520, 345, "#fafafa", 50],
+    [700, 305, "#7a4bd6", 42], [850, 350, "#2f6fe0", 38], [250, 430, "#ff7a1a", 44],
+    [610, 440, "#e84f9b", 46], [800, 455, "#f5d20a", 36],
+  ];
+  const draw = (ms) => {
+    const t = ms / 1000;
+    const sky = ctx.createLinearGradient(0, 0, 0, 270);
+    sky.addColorStop(0, "#79b8ff"); sky.addColorStop(1, "#dcefff");
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, 960, 270);
+    ctx.fillStyle = "#fff6c4"; ctx.beginPath(); ctx.arc(820, 80, 42, 0, 7); ctx.fill();
+    ctx.fillStyle = "#4a9a3f"; ctx.fillRect(0, 260, 960, 280);
+    ctx.fillStyle = "#3c8434"; ctx.fillRect(0, 380, 960, 160);
+    for (const [x, y, color, r] of flowers) {
+      const sway = Math.sin(t * 1.3 + x) * 6;
+      ctx.strokeStyle = "#2d6b2a"; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(x, 540); ctx.quadraticCurveTo(x, y + 80, x + sway, y); ctx.stroke();
+      ctx.fillStyle = color;
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 + t * 0.2;
+        ctx.beginPath();
+        ctx.ellipse(x + sway + Math.cos(a) * r * .55, y + Math.sin(a) * r * .55, r * .5, r * .28, a, 0, 7);
+        ctx.fill();
+      }
+      ctx.fillStyle = color === "#f5d20a" ? "#8a4b12" : "#ffc21a";
+      ctx.beginPath(); ctx.arc(x + sway, y, r * .28, 0, 7); ctx.fill();
+    }
+    // abeja en ocho
+    const bx = 480 + Math.sin(t * 1.1) * 330, by = 190 + Math.sin(t * 2.2) * 80;
+    ctx.fillStyle = "rgba(255,255,255,.7)";
+    ctx.beginPath(); ctx.ellipse(bx - 6, by - 16, 12, 8, -.5, 0, 7); ctx.ellipse(bx + 8, by - 16, 12, 8, .5, 0, 7); ctx.fill();
+    ctx.fillStyle = "#f2b705"; ctx.beginPath(); ctx.ellipse(bx, by, 22, 14, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#1a1a1a";
+    for (const dx of [-8, 2, 12]) ctx.fillRect(bx + dx, by - 13, 5, 26);
+    demoTimer = requestAnimationFrame(draw);
+  };
+  draw(performance.now());
+  humanVideo.srcObject = c.captureStream(30);
+  useVideo("demo").then(begin);
+}
+
+/* ================================================================ narración */
+let voice = null, narrating = false, narrStart = 0;
+
+function pickVoice() {
+  const voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith("es"));
+  const score = (v) => (/natural|online|neural/i.test(v.name) ? 2 : 0) + (/es-(mx|us|419)/i.test(v.lang) ? 1 : 0);
+  voice = voices.sort((a, b) => score(b) - score(a))[0] || null;
+}
+if ("speechSynthesis" in window) {
+  pickVoice();
+  speechSynthesis.addEventListener?.("voiceschanged", pickVoice);
+}
+
+function speak(text) {
+  stopSpeech();
+  if (!state.voice || !("speechSynthesis" in window)) return;
+  // Frase por frase: algunos navegadores cortan los textos largos.
+  for (const sentence of text.match(/[^.!?]+[.!?]+/g) || [text]) {
+    const u = new SpeechSynthesisUtterance(sentence.trim());
+    u.lang = voice ? voice.lang : "es-ES";
+    if (voice) u.voice = voice;
+    speechSynthesis.speak(u);
+  }
+  narrating = true;
+  narrStart = performance.now();
+  setBig(true);
+}
+
+function stopSpeech() {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  narrating = false;
+  setBig(false);
+}
+
+function setBig(on) {
+  stage.classList.toggle("big", on);
+  $("hudNarr").hidden = !on;
+}
+
+/* ================================================================ interfaz */
+const animalButtons = ANIMALS.map((a, i) => {
+  const b = document.createElement("button");
+  b.className = "ctl animal";
+  b.innerHTML = `<span class="chips">${a.receptors.map((r) => `<i class="chip ${r}"></i>`).join("")}</span>${a.name}`;
+  b.title = `${a.eye} · ${a.info[0]}`;
+  b.addEventListener("click", () => selectAnimal(i));
+  $("rowAnimals").append(b);
+  return b;
+});
+
+const filterButtons = FILTERS.map((f, i) => {
+  const b = document.createElement("button");
+  b.className = "ctl";
+  b.innerHTML = `${f.label} <span class="key">${f.key}</span>`;
+  b.addEventListener("click", () => { state.flags[i] = !state.flags[i]; syncUI(); });
+  $("groupFilters").append(b);
+  return b;
+});
+
+function selectAnimal(i) {
+  const a = ANIMALS[i];
+  state.animal = i;
+  state.flags = [true, a.fisheye > 0, a.compound, a.motion, true];
+  state.hex = a.hex;
+  syncUI();
+  if (state.voice) speak(a.narration);
+}
+
+function syncUI() {
+  const a = ANIMALS[state.animal];
+  animalButtons.forEach((b, i) => b.setAttribute("aria-pressed", i === state.animal));
+  filterButtons.forEach((b, i) => b.setAttribute("aria-pressed", state.flags[i]));
+  $("btnBorders").setAttribute("aria-pressed", state.borders);
+  $("btnInfo").setAttribute("aria-pressed", state.info);
+  $("btnVoice").setAttribute("aria-pressed", state.voice);
+  $("facetReadout").textContent = `Faceta ${state.hex} px`;
+  $("hudName").textContent = a.name;
+  $("hudEye").textContent = a.eye;
+  $("hudChips").innerHTML = a.receptors.map((r) => `<i class="chip ${r}"></i>`).join("");
+  $("ficha1").textContent = a.info[0];
+  $("ficha2").textContent = a.info[1];
+  $("ficha").hidden = !state.info;
+}
+
+function changeFacet(step) {
+  state.hex = Math.min(40, Math.max(3, state.hex + step));
+  syncUI();
+}
+
+function toggleVoice() {
+  state.voice = !state.voice;
+  syncUI();
+  if (state.voice) speak(ANIMALS[state.animal].narration);
+  else stopSpeech();
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 2600);
+}
+
+function toggleFullscreen() {
+  const req = document.documentElement.requestFullscreen;
+  if (!document.fullscreenElement && req) req.call(document.documentElement).catch(() => {});
+  else if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+
+function showIntroError(msg) {
+  $("introError").textContent = msg;
+  $("introError").hidden = !msg;
+}
+
+function showIntro() {
+  stopSpeech();
+  $("btnBack").hidden = !source;
+  $("intro").hidden = false;
+}
+
+function begin() {
+  $("intro").hidden = true;
+  showIntroError("");
+  if (!voice && state.voice && "speechSynthesis" in window) {
+    pickVoice();
+    if (!voice) toast("Este navegador no tiene voz en español; se usará la voz predeterminada.");
+  }
+  selectAnimal(state.animal);
+}
+
+$("btnCamera").addEventListener("click", startCamera);
+$("btnFile").addEventListener("click", () => $("fileInput").click());
+$("fileInput").addEventListener("change", (e) => { startFile(e.target.files[0]); e.target.value = ""; });
+$("btnDemo").addEventListener("click", startDemo);
+$("btnBack").addEventListener("click", () => ($("intro").hidden = true));
+$("btnBorders").addEventListener("click", () => { state.borders = !state.borders; syncUI(); });
+$("btnLess").addEventListener("click", () => changeFacet(-1));
+$("btnMore").addEventListener("click", () => changeFacet(1));
+$("btnInfo").addEventListener("click", () => { state.info = !state.info; syncUI(); });
+$("btnVoice").addEventListener("click", toggleVoice);
+$("btnShot").addEventListener("click", () => (captureRequested = true));
+$("btnFull").addEventListener("click", toggleFullscreen);
+$("btnSource").addEventListener("click", showIntro);
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) return;
+  const k = e.key.toLowerCase();
+  if (k >= "1" && k <= "5") { state.flags[+k - 1] = !state.flags[+k - 1]; syncUI(); }
+  else if (k === "b") { state.borders = !state.borders; syncUI(); }
+  else if (k === "+" || k === "=") changeFacet(1);
+  else if (k === "-") changeFacet(-1);
+  else if (k === "i") { state.info = !state.info; syncUI(); }
+  else if (k === "n") toggleVoice();
+  else if (k === "a" || k === "arrowright") selectAnimal((state.animal + 1) % ANIMALS.length);
+  else if (k === "arrowleft") selectAnimal((state.animal + ANIMALS.length - 1) % ANIMALS.length);
+  else if (k === "s") captureRequested = true;
+  else if (k === "f") toggleFullscreen();
+  else return;
+  e.preventDefault();
+});
+
+new ResizeObserver(() => {
+  stage.classList.toggle("portrait", stage.clientHeight > stage.clientWidth * 1.1);
+}).observe(stage);
+
+/* ================================================================ captura */
+let captureRequested = false;
+
+function mediaSize(el) {
+  return el.tagName === "VIDEO" ? [el.videoWidth, el.videoHeight] : [el.naturalWidth, el.naturalHeight];
+}
+
+function capture() {
+  const sr = stage.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const c = document.createElement("canvas");
+  c.width = Math.round(sr.width * dpr);
+  c.height = Math.round(sr.height * dpr);
+  const ctx = c.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, sr.width, sr.height);
+
+  const rect = (el) => { const r = el.getBoundingClientRect(); return [r.left - sr.left, r.top - sr.top, r.width, r.height]; };
+  const label = (text, x, y, size) => {
+    ctx.font = `800 ${size}px ${getComputedStyle(document.body).getPropertyValue("--display")}`;
+    ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(0,0,0,.9)"; ctx.shadowBlur = 4;
+    ctx.fillText(text, x, y);
+    ctx.shadowBlur = 0;
+  };
+
+  const [ax, ay, aw, ah] = rect($("paneAnimal"));
+  ctx.drawImage(glCanvas, ax, ay, aw, ah);
+  label(ANIMALS[state.animal].name, ax + 14, ay + 34, 28);
+
+  const [hx, hy, hw, hh] = rect($("paneHuman"));
+  const el = source.el, [sw, sh] = mediaSize(el);
+  const scale = Math.max(hw / sw, hh / sh), cw = hw / scale, ch = hh / scale;
+  ctx.save();
+  if (source.kind === "camera") { ctx.translate(hx + hw, hy); ctx.scale(-1, 1); } else ctx.translate(hx, hy);
+  ctx.drawImage(el, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, hw, hh);
+  ctx.restore();
+  if (stage.classList.contains("big")) {
+    ctx.strokeStyle = "#ecebe3"; ctx.lineWidth = 3; ctx.strokeRect(hx, hy, hw, hh);
+  }
+  label("Humano", hx + 10, hy + 26, stage.classList.contains("big") ? 15 : 22);
+
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
+  const name = `${ANIMALS[state.animal].name.toLowerCase()}_${stamp}.png`;
+  c.toBlob((blob) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`Captura guardada en Descargas: ${name}`);
+  });
+}
+
+/* ================================================================ bucle */
+let fps = 0, lastT = performance.now(), statsT = 0;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = now - lastT;
+  lastT = now;
+  fps = fps * 0.92 + (1000 / Math.max(dt, 1)) * 0.08;
+
+  // Al terminar la narración vuelve la vista 50% / 50%.
+  if (narrating && now - narrStart > 800 && !speechSynthesis.speaking && !speechSynthesis.pending) {
+    narrating = false;
+    setBig(false);
+  }
+  if (!source) return;
+
+  const el = source.el;
+  const [vw, vh] = mediaSize(el);
+  if (!vw || !vh) return;
+
+  // Canvas al tamaño real en pantalla (cambia durante la transición de modo).
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.max(1, Math.round(glCanvas.clientWidth * dpr));
+  const H = Math.max(1, Math.round(glCanvas.clientHeight * dpr));
+  if (glCanvas.width !== W || glCanvas.height !== H) { glCanvas.width = W; glCanvas.height = H; }
+
+  // ¿Hay un cuadro nuevo de video?
+  if (!source.isImage && !("requestVideoFrameCallback" in HTMLVideoElement.prototype)) {
+    if (el.currentTime !== lastVideoTime) { lastVideoTime = el.currentTime; newFrame = true; }
+  }
+  const a = ANIMALS[state.animal];
+  gl.bindVertexArray(vao);
+
+  if (newFrame && (source.isImage || el.readyState >= 2)) {
+    newFrame = false;
+    framesSinceSource++;
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el);
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+    // estelas de movimiento (se calculan con cada cuadro de la cámara, ~30 por segundo)
+    const write = 1 - trailRead;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[write]);
+    gl.viewport(0, 0, TRAIL_W, TRAIL_H);
+    gl.useProgram(trailProg);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, trails[trailRead]);
+    gl.uniform1i(trailProg.u("uVideo"), 0);
+    gl.uniform1i(trailProg.u("uPrev"), 1);
+    gl.uniform2f(trailProg.u("uSize"), TRAIL_W, TRAIL_H);
+    gl.uniform1f(trailProg.u("uDecay"), a.decay);
+    gl.uniform1f(trailProg.u("uThresh"), a.thresh / 255);
+    gl.uniform1f(trailProg.u("uInit"), framesSinceSource > 2 && !source.isImage ? 1 : 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    trailRead = write;
+  }
+
+  // visión del animal
+  // Escala: los valores de faceta y desenfoque están pensados para un video de 480 px de alto.
+  const va = vw / vh;
+  const s = Math.max(W / (480 * va), H / 480);
+  const blur = a.compound && state.flags[2] ? Math.max(a.blur, 0.5) : a.blur;
+  const sigmaTex = blur * vh / 480;
+
+  gl.viewport(0, 0, W, H);
+  gl.useProgram(mainProg);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, videoTex);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, trails[trailRead]);
+  const u = mainProg.u;
+  gl.uniform1i(u("uVideo"), 0);
+  gl.uniform1i(u("uTrail"), 1);
+  gl.uniform2f(u("uRes"), W, H);
+  gl.uniform1f(u("uVideoAspect"), va);
+  gl.uniform1f(u("uMirror"), source.kind === "camera" ? 1 : 0);
+  ["uColor", "uFish", "uHex", "uMotion", "uVig"].forEach((n, i) => gl.uniform1f(u(n), state.flags[i] ? 1 : 0));
+  gl.uniform1f(u("uBorders"), state.borders ? 1 : 0);
+  gl.uniform1f(u("uFishK"), a.fisheye);
+  gl.uniform1f(u("uFacet"), Math.max(3, state.hex * s));
+  gl.uniform1f(u("uLod"), sigmaTex > 0 ? Math.log2(1 + sigmaTex * 1.6) : 0);
+  gl.uniform1f(u("uNight"), a.night);
+  gl.uniform1f(u("uTime"), (now / 1000) % 1000);
+  gl.uniform3fv(u("uM0"), a.matrix[0]);
+  gl.uniform3fv(u("uM1"), a.matrix[1]);
+  gl.uniform3fv(u("uM2"), a.matrix[2]);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  if (captureRequested) { captureRequested = false; capture(); }
+
+  if (now - statsT > 300) {
+    statsT = now;
+    $("hudStats").textContent = (state.flags[2] ? `Faceta ${state.hex} px · ` : "") + `${Math.round(fps)} fps`;
+  }
+}
+
+/* ================================================================ inicio */
+syncUI();
+if (!gl) {
+  showIntroError("Este navegador no es compatible con WebGL 2, que se necesita para los filtros. Prueba con una versión reciente de Chrome, Edge o Firefox.");
+  ["btnCamera", "btnFile", "btnDemo"].forEach((id) => ($(id).disabled = true));
+} else {
+  try {
+    initGL();
+    requestAnimationFrame(frame);
+  } catch (err) {
+    showIntroError("No se pudieron preparar los filtros: " + err.message);
+  }
+}
+</script>
+</body>
+</html>
